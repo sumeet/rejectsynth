@@ -49,8 +49,11 @@ pub enum Inst {
     BPM(u16),
     Key(Key),
     Scale(Scale),
-    Note {
-        duration: Duration,
-        pitch: NotePitch,
-    },
+    Note(Note),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Note {
+    pub duration: Duration,
+    pub pitch: NotePitch,
 }

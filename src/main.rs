@@ -1,5 +1,7 @@
 #![feature(iter_array_chunks)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 
+use dsl::{Accidental, Inst, Key, Note, Scale, ABC};
 use psimple::Simple;
 use pulse::sample::{Format, Spec};
 use pulse::stream::Direction;
@@ -30,6 +32,71 @@ fn note(duration_ms: usize, freq: f32, volume: f32) -> impl Iterator<Item = f32>
             None
         }
     })
+}
+
+struct SongContext {
+    bpm: u16,
+    key: Key,
+    scale: Scale,
+}
+
+impl SongContext {
+    fn default() -> Self {
+        Self::new(
+            120,
+            Key {
+                abc: ABC::C,
+                accidental: Accidental::Natural,
+            },
+            Scale::Major,
+        )
+    }
+
+    fn new(bpm: u16, key: Key, scale: Scale) -> Self {
+        Self { bpm, key, scale }
+    }
+
+    fn render_note(&self, n: Note) -> impl Iterator<Item = f32> {
+        let freq = match n.pitch.enum_ {
+            dsl::NotePitchEnum::ScaleDegree(degree) => {
+                let degree = degree;
+                let key = self.key.abc as i8;
+                let scale = match self.scale {
+                    Scale::Major => [0, 2, 4, 5, 7, 9, 11],
+                    Scale::Minor => [0, 2, 3, 5, 7, 8, 10],
+                };
+                let scale_degree = scale[(degree + key) as usize % scale.len()];
+                440.0 * 2.0f32.powf((scale_degree as f32) / 12.0)
+            }
+        };
+        let duration_ms = match n.duration {
+            dsl::Duration::Quarter => 60_000 / self.bpm as usize,
+        };
+        note(duration_ms, freq, 1.)
+    }
+
+    fn play_instructions<'a>(
+        &'a mut self,
+        instrs: impl Iterator<Item = &'a Inst> + 'a,
+    ) -> impl Iterator<Item = f32> + 'a {
+        instrs
+            .flat_map(move |inst| match inst {
+                Inst::BPM(bpm) => {
+                    self.bpm = *bpm;
+                    None
+                }
+                Inst::Key(key) => {
+                    self.key = *key;
+                    None
+                }
+                Inst::Scale(scale) => {
+                    self.scale = *scale;
+                    None
+                }
+                Inst::Note(note) => Some(self.render_note(*note)),
+            })
+            .flatten()
+    }
 }
 
 fn main() {

@@ -11,63 +11,63 @@ pub fn m(_: TokenStream) -> TokenStream {
                 accidental: dsl::Accidental::Natural,
             }),
             dsl::Inst::Scale(dsl::Scale::Minor),
-            dsl::Inst::Note {
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(2),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(1),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(0),
                     accidental: dsl::Accidental::Sharp,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(1),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
+            }),
 
-            dsl::Inst::Note {
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(1),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(0),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(-1),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
-            dsl::Inst::Note {
+            }),
+            dsl::Inst::Note (dsl::Note{
                 duration: dsl::Duration::Quarter,
                 pitch: dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(0),
                     accidental: dsl::Accidental::Natural,
                 },
-            },
+            }),
         ]
     };
     guys.into()
