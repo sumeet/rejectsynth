@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 pulse = { version = "2.0", package = "libpulse-binding" }
 psimple = { version = "2.0", package = "libpulse-simple-binding" }
+macro = { path = "./macro" }
+dsl = { path = "./dsl" }
+
+[workspace]
+members = ["./", "macro", "dsl"]

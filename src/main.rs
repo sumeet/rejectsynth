@@ -3,12 +3,14 @@
 use psimple::Simple;
 use pulse::sample::{Format, Spec};
 use pulse::stream::Direction;
+use r#macro::m;
 
 const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 
-fn note(duration_ms: usize, freq: f32) -> impl Iterator<Item = f32> {
+// volume is between 0 and 1
+fn note(duration_ms: usize, freq: f32, volume: f32) -> impl Iterator<Item = f32> {
     let samples_per_note = (SAMPLE_RATE * duration_ms as f32 / 1000.0) as usize;
     let mut sample_count = 0;
 
@@ -23,7 +25,7 @@ fn note(duration_ms: usize, freq: f32) -> impl Iterator<Item = f32> {
                 phase -= 2.0 * std::f32::consts::PI;
             }
             sample_count += 1;
-            Some(sample)
+            Some(sample * volume)
         } else {
             None
         }
@@ -31,6 +33,30 @@ fn note(duration_ms: usize, freq: f32) -> impl Iterator<Item = f32> {
 }
 
 fn main() {
+    let insts = m! {
+      bpm 90
+      key G
+      scale min
+
+      // these are scale degrees
+      // and quarter notes
+      2,1,0#,1,
+      1,0,-1,0,
+    };
+
+    let pulse = init_pulse();
+    let a440 = note(5_000, 440., 1.);
+    let mut buffer = [0f32; BUFFER_SIZE];
+    for chunks in a440.array_chunks::<BUFFER_SIZE_HALF>() {
+        for (i, &note) in chunks.iter().enumerate() {
+            buffer[i * 2] = note;
+            buffer[i * 2 + 1] = note;
+        }
+        pulse.write(as_u8_slice(&buffer)).unwrap();
+    }
+}
+
+fn init_pulse() -> Simple {
     let spec = Spec {
         format: Format::F32le,
         channels: 2,
@@ -49,16 +75,7 @@ fn main() {
         None,                // Use default buffering attributes
     )
     .unwrap();
-    let a440_left = note(5_000, 440.);
-    let a440_right = note(5_000, 440.);
-    let mut buffer = [0f32; BUFFER_SIZE];
-    for chunks in a440_left.zip(a440_right).array_chunks::<BUFFER_SIZE_HALF>() {
-        for (i, (left, right)) in chunks.iter().enumerate() {
-            buffer[i * 2] = *left;
-            buffer[i * 2 + 1] = *right;
-        }
-        s.write(as_u8_slice(&buffer)).unwrap();
-    }
+    s
 }
 
 fn as_u8_slice<T>(input: &[T]) -> &[u8] {
