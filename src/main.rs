@@ -11,6 +11,48 @@ const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 
+fn main() {
+    let pulse = init_pulse();
+
+    let mut ctx = SongContext::default();
+
+    let insts = m! {
+      bpm 90
+      key G
+      scale minor
+
+      // 2,1,-1#,1,
+      // 1,-1,-2,-1,
+      // -1, -2, -3#, -2
+      // -2, -3, -4#, -3
+      //
+      // 2,1,-1#,1,
+      // 3,2,1#,2
+      // 4,3,2,3
+      // 2,1,-1,-2
+
+    // transposed version
+      9,8,7#,8,
+      8,6,5,6,
+      6, 5, 5#, 5
+      5, 4, 4#, 4
+
+      9,8,7#,8,
+      10,9,8#,9
+      11,10,9,10
+      9,8,7,6
+    };
+
+    let mut buffer = [0f32; BUFFER_SIZE];
+    for chunk in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
+        for (i, &note) in chunk.iter().enumerate() {
+            buffer[i * 2] = note;
+            buffer[i * 2 + 1] = note;
+        }
+        pulse.write(as_u8_slice(&buffer)).unwrap();
+    }
+}
+
 // volume is between 0 and 1
 fn note(duration_ms: usize, freq: f32, volume: f32) -> impl Iterator<Item = f32> {
     let samples_per_note = (SAMPLE_RATE * duration_ms as f32 / 1000.0) as usize;
@@ -149,48 +191,6 @@ impl SongContext {
                 Inst::PlayNote(note) => Some(self.render_note(*note)),
             })
             .flatten()
-    }
-}
-
-fn main() {
-    let pulse = init_pulse();
-
-    let mut ctx = SongContext::default();
-
-    let insts = m! {
-      bpm 90
-      key G
-      scale minor
-
-      // 2,1,-1#,1,
-      // 1,-1,-2,-1,
-      // -1, -2, -3#, -2
-      // -2, -3, -4#, -3
-      //
-      // 2,1,-1#,1,
-      // 3,2,1#,2
-      // 4,3,2,3
-      // 2,1,-1,-2
-
-    // transposed version
-      9,8,7#,8,
-      8,6,5,6,
-      6, 5, 5#, 5
-      5, 4, 4#, 4
-
-      9,8,7#,8,
-      10,9,8#,9
-      11,10,9,10
-      9,8,7,6
-    };
-
-    let mut buffer = [0f32; BUFFER_SIZE];
-    for chunk in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
-        for (i, &note) in chunk.iter().enumerate() {
-            buffer[i * 2] = note;
-            buffer[i * 2 + 1] = note;
-        }
-        pulse.write(as_u8_slice(&buffer)).unwrap();
     }
 }
 
