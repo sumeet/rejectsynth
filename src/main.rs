@@ -34,6 +34,60 @@ fn note(duration_ms: usize, freq: f32, volume: f32) -> impl Iterator<Item = f32>
     })
 }
 
+fn to_freq(abc: ABC, accidental: Accidental) -> f32 {
+    let abc = match abc {
+        ABC::A => 0,
+        ABC::B => 2,
+        ABC::C => 3,
+        ABC::D => 5,
+        ABC::E => 7,
+        ABC::F => 8,
+        ABC::G => 10,
+    };
+    let accidental = match accidental {
+        Accidental::Natural => 0,
+        Accidental::Sharp => 1,
+        Accidental::Flat => -1,
+    };
+    let degree = abc + accidental;
+    440.0 * 2.0f32.powf(degree as f32 / 12.0)
+}
+
+fn shift_up_by_interval(freq: f32, interval: i8) -> f32 {
+    freq * 2.0f32.powf(interval as f32 / 12.0)
+}
+
+const fn scale_ascending(scale: Scale) -> [i8; 7] {
+    match scale {
+        Scale::Major => [0, 2, 2, 1, 2, 2, 2],
+        Scale::Minor => [0, 2, 1, 2, 2, 1, 2],
+    }
+}
+
+const fn scale_descending(scale: Scale) -> [i8; 7] {
+    match scale {
+        Scale::Major => [0, -2, -2, -1, -2, -2, -2],
+        Scale::Minor => [0, -2, -1, -2, -2, -1, -2],
+    }
+}
+
+fn scale_degree_to_semitones(scale: Scale, degree: i8) -> i8 {
+    if degree == 0 {
+        panic!(
+            "scale degree cannot be 0, it doesn't make sense. 1 or -1 would stay in the same place"
+        )
+    }
+    if degree == 1 {
+        return 0;
+    }
+    let (scale, num_to_take) = if degree > 0 {
+        (scale_ascending(scale), degree as usize)
+    } else {
+        (scale_descending(scale), -(degree - 1) as usize)
+    };
+    scale.iter().cycle().take(num_to_take).sum()
+}
+
 struct SongContext {
     bpm: u16,
     key: Key,
@@ -59,14 +113,13 @@ impl SongContext {
     fn render_note(&self, n: Note) -> impl Iterator<Item = f32> {
         let freq = match n.pitch.enum_ {
             dsl::NotePitchEnum::ScaleDegree(degree) => {
-                let degree = degree;
-                let key = self.key.abc as i8;
-                let scale = match self.scale {
-                    Scale::Major => [0, 2, 4, 5, 7, 9, 11],
-                    Scale::Minor => [0, 2, 3, 5, 7, 8, 10],
+                let offset = dbg!(scale_degree_to_semitones(self.scale, dbg!(degree)));
+                let offset = match n.pitch.accidental {
+                    dsl::Accidental::Natural => offset,
+                    dsl::Accidental::Sharp => offset + 1,
+                    dsl::Accidental::Flat => offset - 1,
                 };
-                let scale_degree = scale[(degree + key) as usize % scale.len()];
-                440.0 * 2.0f32.powf((scale_degree as f32) / 12.0)
+                shift_up_by_interval(to_freq(self.key.abc, self.key.accidental), offset)
             }
         };
         let duration_ms = match n.duration {
@@ -75,7 +128,7 @@ impl SongContext {
         note(duration_ms, freq, 1.)
     }
 
-    fn play_instructions<'a>(
+    fn play<'a>(
         &'a mut self,
         instrs: impl Iterator<Item = &'a Inst> + 'a,
     ) -> impl Iterator<Item = f32> + 'a {
@@ -100,21 +153,21 @@ impl SongContext {
 }
 
 fn main() {
+    let pulse = init_pulse();
+
+    let mut ctx = SongContext::default();
+
     let insts = m! {
       bpm 90
       key G
-      scale min
+      scale myx
 
-      // these are scale degrees
-      // and quarter notes
-      2,1,0#,1,
-      1,0,-1,0,
+      2,1,-1#,1,
+      1,-1,-2,-3,
     };
 
-    let pulse = init_pulse();
-    let a440 = note(5_000, 440., 1.);
     let mut buffer = [0f32; BUFFER_SIZE];
-    for chunks in a440.array_chunks::<BUFFER_SIZE_HALF>() {
+    for chunks in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
         for (i, &note) in chunks.iter().enumerate() {
             buffer[i * 2] = note;
             buffer[i * 2 + 1] = note;
