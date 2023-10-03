@@ -134,19 +134,19 @@ impl SongContext {
     ) -> impl Iterator<Item = f32> + 'a {
         instrs
             .flat_map(move |inst| match inst {
-                Inst::BPM(bpm) => {
+                Inst::SetBPM(bpm) => {
                     self.bpm = *bpm;
                     None
                 }
-                Inst::Key(key) => {
+                Inst::SetKey(key) => {
                     self.key = *key;
                     None
                 }
-                Inst::Scale(scale) => {
+                Inst::SetScale(scale) => {
                     self.scale = *scale;
                     None
                 }
-                Inst::Note(note) => Some(self.render_note(*note)),
+                Inst::PlayNote(note) => Some(self.render_note(*note)),
             })
             .flatten()
     }
@@ -160,15 +160,22 @@ fn main() {
     let insts = m! {
       bpm 90
       key G
-      scale myx
+      scale minor
+
+      9,1,-1#,1,
+      1,-1,-2,-1,
+      -1, -2, -3#, -2
+      -2, -3, -4#, -3
 
       2,1,-1#,1,
-      1,-1,-2,-3,
+      3,2,1#,2
+      4,3,2,3
+      2,1,-1,-2
     };
 
     let mut buffer = [0f32; BUFFER_SIZE];
-    for chunks in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
-        for (i, &note) in chunks.iter().enumerate() {
+    for chunk in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
+        for (i, &note) in chunk.iter().enumerate() {
             buffer[i * 2] = note;
             buffer[i * 2 + 1] = note;
         }

@@ -10,3 +10,6 @@ proc-macro = true
 
 [dependencies]
 dsl = { path = "../dsl" }
+quote = "*"
+syn = "*"
+proc-macro2 = "*"

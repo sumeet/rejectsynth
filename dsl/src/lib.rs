@@ -48,10 +48,10 @@ pub enum NotePitchEnum {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Inst {
-    BPM(u16),
-    Key(Key),
-    Scale(Scale),
-    Note(Note),
+    SetBPM(u16),
+    SetKey(Key),
+    SetScale(Scale),
+    PlayNote(Note),
 }
 
 #[derive(Debug, Clone, Copy)]
