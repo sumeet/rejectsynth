@@ -59,15 +59,15 @@ fn shift_up_by_interval(freq: f32, interval: i8) -> f32 {
 
 const fn scale_ascending(scale: Scale) -> [i8; 7] {
     match scale {
-        Scale::Major => [0, 2, 2, 1, 2, 2, 2],
-        Scale::Minor => [0, 2, 1, 2, 2, 1, 2],
+        Scale::Major => [2, 2, 1, 2, 2, 2, 1],
+        Scale::Minor => [2, 1, 2, 2, 1, 2, 2],
     }
 }
 
 const fn scale_descending(scale: Scale) -> [i8; 7] {
     match scale {
-        Scale::Major => [0, -2, -2, -1, -2, -2, -2],
-        Scale::Minor => [0, -2, -1, -2, -2, -1, -2],
+        Scale::Major => [-1, -2, -2, -2, -1, -2, -2],
+        Scale::Minor => [-2, -1, -2, -2, -2, -1, -1],
     }
 }
 
@@ -81,9 +81,9 @@ fn scale_degree_to_semitones(scale: Scale, degree: i8) -> i8 {
         return 0;
     }
     let (scale, num_to_take) = if degree > 0 {
-        (scale_ascending(scale), degree as usize)
+        (scale_ascending(scale), (degree - 1) as usize)
     } else {
-        (scale_descending(scale), -(degree - 1) as usize)
+        (scale_descending(scale), -(degree) as usize)
     };
     scale.iter().cycle().take(num_to_take).sum()
 }
@@ -162,15 +162,26 @@ fn main() {
       key G
       scale minor
 
-      9,1,-1#,1,
-      1,-1,-2,-1,
-      -1, -2, -3#, -2
-      -2, -3, -4#, -3
+      // 2,1,-1#,1,
+      // 1,-1,-2,-1,
+      // -1, -2, -3#, -2
+      // -2, -3, -4#, -3
+      //
+      // 2,1,-1#,1,
+      // 3,2,1#,2
+      // 4,3,2,3
+      // 2,1,-1,-2
 
-      2,1,-1#,1,
-      3,2,1#,2
-      4,3,2,3
-      2,1,-1,-2
+    // transposed version
+      9,8,7#,8,
+      8,6,5,6,
+      6, 5, 5#, 5
+      5, 4, 4#, 4
+
+      9,8,7#,8,
+      10,9,8#,9
+      11,10,9,10
+      9,8,7,6
     };
 
     let mut buffer = [0f32; BUFFER_SIZE];
