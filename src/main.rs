@@ -14,6 +14,7 @@ const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 mod songs {
     use super::*;
 
+    #[allow(dead_code)]
     pub fn fairy() -> Vec<Inst> {
         m! {
             bpm 90
@@ -34,13 +35,23 @@ mod songs {
 
     pub fn kalm() -> Vec<Inst> {
         m! {
-            bpm 90
-            key D
+            bpm 70
+            key E
             scale minor
 
-            4,3,2,3
-            4~,-3,-1
-            2,1,1~
+            ~4 ~3 ~2 ~3
+
+            // 4,~-3,~-1
+
+            // 2,1,1~
+
+            // ~~
+
+            // 1,5 4,3,
+
+            // 4~., ~5, ~6#,
+
+            // 7,5, 5~
 
         }
     }
@@ -183,9 +194,9 @@ impl SongContext {
                 shift_up_by_interval(to_freq(self.key.abc, self.key.accidental), offset)
             }
         };
-        let duration_ms = match n.duration {
-            dsl::Duration::Quarter => 60_000 / self.bpm as usize,
-        };
+        let quarter_duration = 60_000 / self.bpm as usize;
+        let duration_ms =
+            quarter_duration * n.duration.numerator as usize / n.duration.denominator as usize;
         let (samples, ending_phase) = note(duration_ms, freq, 1., self.phase);
         self.phase = ending_phase;
         samples

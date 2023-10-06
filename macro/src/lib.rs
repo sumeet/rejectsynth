@@ -1,3 +1,5 @@
+#![feature(proc_macro_span)]
+
 use proc_macro::token_stream::IntoIter;
 use proc_macro::{TokenStream, TokenTree};
 use quote::quote;
@@ -60,12 +62,11 @@ fn parse(ts: TokenStream) -> TokenStream {
                     _ => panic!("unknown ident: {ident:?}"),
                 }
             }
-            TokenTree::Punct(punct) => {
-                let punct = punct.to_string();
+            TokenTree::Punct(t) => {
+                let punct = t.to_string();
                 match punct.as_str() {
-                    "-" => {
-                        ts.next(); // consume the minus
-                        code.extend(note_literal(&mut ts, true));
+                    "~" | "-" => {
+                        code.extend(note_literal(&mut ts));
                     }
                     _ => {
                         println!("skipping punctuation for now: {t:?}");
@@ -74,7 +75,7 @@ fn parse(ts: TokenStream) -> TokenStream {
                 }
             }
             TokenTree::Literal(_) => {
-                code.extend(note_literal(&mut ts, false));
+                code.extend(note_literal(&mut ts));
             }
             TokenTree::Group(_) => unreachable!(),
         }
@@ -85,18 +86,35 @@ fn parse(ts: TokenStream) -> TokenStream {
             v
         }
     };
-    println!("{}", code.clone().to_string());
+    println!("{}", code);
     code.into()
 }
 
-fn note_literal(ts: &mut Peekable<IntoIter>, is_negative: bool) -> TokenStream2 {
-    let mut accidental = quote! { dsl::Accidental::Natural };
-    let mut lit = ts.next().unwrap().to_string();
-    if lit.ends_with('b') {
-        accidental = quote! { dsl::Accidental::Flat };
-        lit.replace_range(lit.len() - 1.., "");
+fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
+    let mut numerator = 1u8;
+    let mut denominator = 1u8;
+    let mut is_negative = false;
+
+    while let Some(first) = ts.peek() {
+        if first.to_string() == "~" {
+            ts.next();
+            denominator *= 2;
+        } else if first.to_string() == "-" {
+            ts.next();
+            is_negative = true;
+        } else {
+            break;
+        }
     }
-    let n = match lit.parse::<i8>() {
+
+    let mut accidental = quote! { dsl::Accidental::Natural };
+    let lit = ts.next().unwrap();
+    let mut lit_text = lit.to_string();
+    if lit_text.ends_with('b') {
+        accidental = quote! { dsl::Accidental::Flat };
+        lit_text.replace_range(lit_text.len() - 1.., "");
+    }
+    let n = match lit_text.parse::<i8>() {
         Ok(n) => n * if is_negative { -1 } else { 1 },
         Err(_) => panic!("unknown literal: {lit:?}"),
     };
@@ -107,9 +125,26 @@ fn note_literal(ts: &mut Peekable<IntoIter>, is_negative: bool) -> TokenStream2 
         }
     }
 
+    while let Some(TokenTree::Punct(punct)) = ts.peek() {
+        let no_ws = lit.span().end().column == punct.span().start().column;
+        if punct.to_string() == "~" && no_ws {
+            if numerator == 1 {
+                numerator = 2
+            } else {
+                numerator += 2
+            };
+        } else if punct.to_string() == "." {
+            ts.next();
+            numerator *= 3;
+            denominator *= 2;
+        } else {
+            break;
+        }
+    }
+
     quote! {
         v.push(dsl::Inst::PlayNote (dsl::Note{
-            duration: dsl::Duration::Quarter,
+            duration: dsl::Duration::new(#numerator, #denominator),
             pitch: dsl::NotePitch {
                 enum_: dsl::NotePitchEnum::ScaleDegree(#n),
                 accidental: #accidental,
@@ -120,8 +155,8 @@ fn note_literal(ts: &mut Peekable<IntoIter>, is_negative: bool) -> TokenStream2 
 
 #[proc_macro]
 pub fn m(ts: TokenStream) -> TokenStream {
-    // for t in ts.clone() {
-    //     println!("t: {:?}", t);
-    // }
+    for t in ts.clone() {
+        println!("t: {:?}", t);
+    }
     parse(ts)
 }

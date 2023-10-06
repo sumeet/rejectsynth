@@ -31,8 +31,18 @@ pub enum Scale {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Duration {
-    Quarter,
+pub struct Duration {
+    pub numerator: u8,
+    pub denominator: u8,
+}
+
+impl Duration {
+    pub fn new(numerator: u8, denominator: u8) -> Self {
+        Self {
+            numerator,
+            denominator,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
