@@ -90,19 +90,20 @@ fn parse(ts: TokenStream) -> TokenStream {
 }
 
 fn note_literal(ts: &mut Peekable<IntoIter>, is_negative: bool) -> TokenStream2 {
-    let lit = ts.next().unwrap().to_string();
+    let mut accidental = quote! { dsl::Accidental::Natural };
+    let mut lit = ts.next().unwrap().to_string();
+    if lit.ends_with('b') {
+        accidental = quote! { dsl::Accidental::Flat };
+        lit.replace_range(lit.len() - 1.., "");
+    }
     let n = match lit.parse::<i8>() {
         Ok(n) => n * if is_negative { -1 } else { 1 },
         Err(_) => panic!("unknown literal: {lit:?}"),
     };
-    let mut accidental = quote! { dsl::Accidental::Natural };
     if let Some(TokenTree::Punct(punct)) = ts.peek() {
         if punct.to_string() == "#" {
             ts.next();
             accidental = quote! { dsl::Accidental::Sharp };
-        } else if punct.to_string() == "b" {
-            ts.next();
-            accidental = quote! { dsl::Accidental::Flat };
         }
     }
 
@@ -119,78 +120,8 @@ fn note_literal(ts: &mut Peekable<IntoIter>, is_negative: bool) -> TokenStream2 
 
 #[proc_macro]
 pub fn m(ts: TokenStream) -> TokenStream {
-    for t in ts.clone() {
-        println!("t: {:?}", t);
-    }
-    let x = parse(ts);
-    x
-
-    // let guys = quote! {
-    //     vec![
-    //         dsl::Inst::SetBPM(90),
-    //         dsl::Inst::SetKey(dsl::Key {
-    //             abc: dsl::ABC::G,
-    //             accidental: dsl::Accidental::Natural,
-    //         }),
-    //         dsl::Inst::SetScale(dsl::Scale::Minor),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(2),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(1),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(-1),
-    //                 accidental: dsl::Accidental::Sharp,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(1),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(1),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(-1),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(-2),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //         dsl::Inst::PlayNote (dsl::Note{
-    //             duration: dsl::Duration::Quarter,
-    //             pitch: dsl::NotePitch {
-    //                 enum_: dsl::NotePitchEnum::ScaleDegree(-1),
-    //                 accidental: dsl::Accidental::Natural,
-    //             },
-    //         }),
-    //     ]
-    // };
-    // guys.into()
+    // for t in ts.clone() {
+    //     println!("t: {:?}", t);
+    // }
+    parse(ts)
 }

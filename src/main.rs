@@ -11,40 +11,47 @@ const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 
+mod songs {
+    use super::*;
+
+    pub fn fairy() -> Vec<Inst> {
+        m! {
+            bpm 90
+            key G
+            scale minor
+
+            2,1,-1#,1,
+            1,-1,-2,-1,
+            -1,-2,-3#,-2
+            -2,-3,-4#,-3
+
+            2,1,-1#,1,
+            3,2,1#,2
+            4,3,2,3
+            2,1,-1,-2
+        }
+    }
+
+    pub fn kalm() -> Vec<Inst> {
+        m! {
+            bpm 90
+            key D
+            scale minor
+
+            4,3,2,3
+            4~,-3,-1
+            2,1,1~
+
+        }
+    }
+}
+
 fn main() {
     let pulse = init_pulse();
-
     let mut ctx = SongContext::default();
-
-    let insts = m! {
-      bpm 90
-      key G
-      scale minor
-
-      // 2,1,-1#,1,
-      // 1,-1,-2,-1,
-      // -1, -2, -3#, -2
-      // -2, -3, -4#, -3
-      //
-      // 2,1,-1#,1,
-      // 3,2,1#,2
-      // 4,3,2,3
-      // 2,1,-1,-2
-
-    // transposed version
-      9,8,7#,8,
-      8,6,5,6,
-      6, 5, 5#, 5
-      5, 4, 4#, 4
-
-      9,8,7#,8,
-      10,9,8#,9
-      11,10,9,10
-      9,8,7,6
-    };
-
     let mut buffer = [0f32; BUFFER_SIZE];
-    for chunk in ctx.play(insts.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
+    let song = songs::kalm();
+    for chunk in ctx.play(song.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
         for (i, &note) in chunk.iter().enumerate() {
             buffer[i * 2] = note;
             buffer[i * 2 + 1] = note;
@@ -53,27 +60,35 @@ fn main() {
     }
 }
 
+const ATTACK_MS: usize = 10;
+
 // volume is between 0 and 1
-fn note(duration_ms: usize, freq: f32, volume: f32) -> impl Iterator<Item = f32> {
-    let samples_per_note = (SAMPLE_RATE * duration_ms as f32 / 1000.0) as usize;
-    let mut sample_count = 0;
-
+fn note(
+    duration_ms: usize,
+    freq: f32,
+    volume: f32,
+    mut phase: f32,
+) -> (impl Iterator<Item = f32>, f32) {
+    let num_samples_per_note = (SAMPLE_RATE * duration_ms as f32 / 1000.0) as usize;
+    let num_samples_in_attack = (SAMPLE_RATE * ATTACK_MS as f32 / 1000.0) as usize;
     let phase_increment = 2.0 * std::f32::consts::PI * freq / SAMPLE_RATE;
-    let mut phase: f32 = 0.0;
+    let ending_phase = phase + phase_increment * num_samples_per_note as f32;
+    // Normalize phase to [0, 2π]
+    let ending_phase_normalized = ending_phase % (2.0 * std::f32::consts::PI);
 
-    std::iter::from_fn(move || {
-        if sample_count < samples_per_note {
-            let sample = phase.sin();
-            phase += phase_increment;
-            if phase >= 2.0 * std::f32::consts::PI {
-                phase -= 2.0 * std::f32::consts::PI;
-            }
-            sample_count += 1;
-            Some(sample * volume)
-        } else {
-            None
+    let samples_iter = (0..num_samples_per_note).map(move |i| {
+        let sample = phase.sin();
+        let attack_envelope = (i as f32 / num_samples_in_attack as f32).min(1.);
+        let release_envelope =
+            ((num_samples_per_note - i) as f32 / num_samples_in_attack as f32).min(1.);
+
+        phase += phase_increment;
+        if phase >= 2.0 * std::f32::consts::PI {
+            phase -= 2.0 * std::f32::consts::PI;
         }
-    })
+        sample * volume * attack_envelope * release_envelope
+    });
+    (samples_iter, ending_phase_normalized)
 }
 
 fn to_freq(abc: ABC, accidental: Accidental) -> f32 {
@@ -115,9 +130,7 @@ const fn scale_descending(scale: Scale) -> [i8; 7] {
 
 fn scale_degree_to_semitones(scale: Scale, degree: i8) -> i8 {
     if degree == 0 {
-        panic!(
-            "scale degree cannot be 0, it doesn't make sense. 1 or -1 would stay in the same place"
-        )
+        panic!("scale degree cannot be 0, it doesn't make sense")
     }
     if degree == 1 {
         return 0;
@@ -134,6 +147,7 @@ struct SongContext {
     bpm: u16,
     key: Key,
     scale: Scale,
+    phase: f32,
 }
 
 impl SongContext {
@@ -149,13 +163,18 @@ impl SongContext {
     }
 
     fn new(bpm: u16, key: Key, scale: Scale) -> Self {
-        Self { bpm, key, scale }
+        Self {
+            bpm,
+            key,
+            scale,
+            phase: 0.,
+        }
     }
 
-    fn render_note(&self, n: Note) -> impl Iterator<Item = f32> {
+    fn render_note(&mut self, n: Note) -> impl Iterator<Item = f32> {
         let freq = match n.pitch.enum_ {
             dsl::NotePitchEnum::ScaleDegree(degree) => {
-                let offset = dbg!(scale_degree_to_semitones(self.scale, dbg!(degree)));
+                let offset = scale_degree_to_semitones(self.scale, degree);
                 let offset = match n.pitch.accidental {
                     dsl::Accidental::Natural => offset,
                     dsl::Accidental::Sharp => offset + 1,
@@ -167,7 +186,9 @@ impl SongContext {
         let duration_ms = match n.duration {
             dsl::Duration::Quarter => 60_000 / self.bpm as usize,
         };
-        note(duration_ms, freq, 1.)
+        let (samples, ending_phase) = note(duration_ms, freq, 1., self.phase);
+        self.phase = ending_phase;
+        samples
     }
 
     fn play<'a>(
