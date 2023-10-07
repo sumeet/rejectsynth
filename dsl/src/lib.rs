@@ -57,11 +57,12 @@ pub enum NotePitchEnum {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Inst {
+pub enum Instruction {
     SetBPM(u16),
     SetKey(Key),
     SetScale(Scale),
     PlayNote(Note),
+    SkipToNote,
 }
 
 #[derive(Debug, Clone, Copy)]

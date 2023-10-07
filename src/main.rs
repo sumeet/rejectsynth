@@ -1,7 +1,8 @@
 #![feature(iter_array_chunks)]
 #![feature(anonymous_lifetime_in_impl_trait)]
+#![feature(array_windows)]
 
-use dsl::{Accidental, Inst, Key, Note, Scale, ABC};
+use dsl::{Accidental, Instruction, Key, Note, Scale, ABC};
 use psimple::Simple;
 use pulse::sample::{Format, Spec};
 use pulse::stream::Direction;
@@ -15,7 +16,7 @@ mod songs {
     use super::*;
 
     #[allow(dead_code)]
-    pub fn fairy() -> Vec<Inst> {
+    pub fn fairy() -> Vec<Instruction> {
         m! {
             bpm 90
             key G
@@ -33,26 +34,27 @@ mod songs {
         }
     }
 
-    pub fn kalm() -> Vec<Inst> {
+    pub fn kalm() -> Vec<Instruction> {
         m! {
             bpm 70
             key E
             scale minor
 
-            ~4 ~3 ~2 ~3
+            // III: ~4 ~3 ~2 ~3 , 4 ~-3 ~-1
+            //
+            // i: ~2, ~1, 1~.
 
-            // 4,~-3,~-1
+            ~1 ~5 ~4 ~3 , 4. ~~5 ~~6#
 
-            // 2,1,1~
+            ~7 ~5 , 5~.
 
-            // ~~
+            ~5 ~6, ~5 , ~4, 3. ~4
 
-            // 1,5 4,3,
+            ~5 ~-3 , ~-2, ~-1 , ~2 ~1 , 1. ~1
 
-            // 4~., ~5, ~6#,
+            ~2 ~3 , 4~. ~3
 
-            // 7,5, 5~
-
+            ~4 ~5 6~.
         }
     }
 }
@@ -62,7 +64,7 @@ fn main() {
     let mut ctx = SongContext::default();
     let mut buffer = [0f32; BUFFER_SIZE];
     let song = songs::kalm();
-    for chunk in ctx.play(song.iter()).array_chunks::<BUFFER_SIZE_HALF>() {
+    for chunk in ctx.play(&song).array_chunks::<BUFFER_SIZE_HALF>() {
         for (i, &note) in chunk.iter().enumerate() {
             buffer[i * 2] = note;
             buffer[i * 2 + 1] = note;
@@ -202,25 +204,48 @@ impl SongContext {
         samples
     }
 
-    fn play<'a>(
-        &'a mut self,
-        instrs: impl Iterator<Item = &'a Inst> + 'a,
-    ) -> impl Iterator<Item = f32> + 'a {
+    fn play<'a>(&'a mut self, instrs: &'a [Instruction]) -> impl Iterator<Item = f32> + 'a {
+        let mut skip_to_note_index = None;
+        for (i, [a, b]) in instrs.array_windows().enumerate() {
+            match (a, b) {
+                (Instruction::SkipToNote, Instruction::PlayNote { .. }) => {
+                    skip_to_note_index = Some(i + 1);
+                }
+                (Instruction::SkipToNote, _) => {
+                    panic!(
+                        "skip to note must be followed by a note, but was followed by {:?}",
+                        b
+                    )
+                }
+                _ => {}
+            }
+        }
+
         instrs
-            .flat_map(move |inst| match inst {
-                Inst::SetBPM(bpm) => {
+            .iter()
+            .enumerate()
+            .flat_map(move |(i, inst)| match inst {
+                Instruction::SetBPM(bpm) => {
                     self.bpm = *bpm;
                     None
                 }
-                Inst::SetKey(key) => {
+                Instruction::SetKey(key) => {
                     self.key = *key;
                     None
                 }
-                Inst::SetScale(scale) => {
+                Instruction::SetScale(scale) => {
                     self.scale = *scale;
                     None
                 }
-                Inst::PlayNote(note) => Some(self.render_note(*note)),
+                Instruction::PlayNote(note) => {
+                    if let Some(skip_to_note_index) = skip_to_note_index {
+                        if i < skip_to_note_index {
+                            return None;
+                        }
+                    }
+                    Some(self.render_note(*note))
+                }
+                Instruction::SkipToNote => None,
             })
             .flatten()
     }

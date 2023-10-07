@@ -30,7 +30,7 @@ fn parse(ts: TokenStream) -> TokenStream {
                         };
                         let bpm = syn::LitInt::new(&bpm, proc_macro2::Span::call_site());
                         code.extend(quote! {
-                            v.push(dsl::Inst::SetBPM(#bpm));
+                            v.push(dsl::Instruction::SetBPM(#bpm));
                         });
                     }
                     "key" => {
@@ -42,7 +42,7 @@ fn parse(ts: TokenStream) -> TokenStream {
                         let key = titlecase(key);
                         let key = syn::Ident::new(&key, proc_macro2::Span::call_site());
                         code.extend(quote! {
-                            v.push(dsl::Inst::SetKey(dsl::Key {
+                            v.push(dsl::Instruction::SetKey(dsl::Key {
                                 abc: dsl::ABC::#key,
                                 accidental: dsl::Accidental::Natural,
                             }));
@@ -56,7 +56,7 @@ fn parse(ts: TokenStream) -> TokenStream {
                         };
                         let scale = syn::Ident::new(&scale, proc_macro2::Span::call_site());
                         code.extend(quote! {
-                            v.push(dsl::Inst::SetScale(dsl::Scale::#scale));
+                            v.push(dsl::Instruction::SetScale(dsl::Scale::#scale));
                         });
                     }
                     _ => panic!("unknown ident: {ident:?}"),
@@ -68,10 +68,17 @@ fn parse(ts: TokenStream) -> TokenStream {
                     "~" | "-" => {
                         code.extend(note_literal(&mut ts));
                     }
-                    _ => {
+                    "," => {
                         println!("skipping punctuation for now: {t:?}");
                         ts.next();
                     }
+                    ">" => {
+                        code.extend(quote! {
+                            v.push(dsl::Instruction::SkipToNote);
+                        });
+                        ts.next();
+                    }
+                    _ => panic!("unknown punct: {punct:?}"),
                 }
             }
             TokenTree::Literal(_) => {
@@ -114,6 +121,11 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
         accidental = quote! { dsl::Accidental::Flat };
         lit_text.replace_range(lit_text.len() - 1.., "");
     }
+    if lit_text.ends_with('.') {
+        numerator *= 3;
+        denominator *= 2;
+        lit_text.replace_range(lit_text.len() - 1.., "");
+    }
     let n = match lit_text.parse::<i8>() {
         Ok(n) => n * if is_negative { -1 } else { 1 },
         Err(_) => panic!("unknown literal: {lit:?}"),
@@ -133,6 +145,7 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
             } else {
                 numerator += 2
             };
+            ts.next();
         } else if punct.to_string() == "." {
             ts.next();
             numerator *= 3;
@@ -143,7 +156,7 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
     }
 
     quote! {
-        v.push(dsl::Inst::PlayNote (dsl::Note{
+        v.push(dsl::Instruction::PlayNote (dsl::Note{
             duration: dsl::Duration::new(#numerator, #denominator),
             pitch: dsl::NotePitch {
                 enum_: dsl::NotePitchEnum::ScaleDegree(#n),
