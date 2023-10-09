@@ -59,6 +59,8 @@ fn parse(ts: TokenStream) -> TokenStream {
                             v.push(dsl::Instruction::SetScale(dsl::Scale::#scale));
                         });
                     }
+                    // underscore means it's a note with preceding tie
+                    "_" => code.extend(note_literal(&mut ts)),
                     harmony if harmony.starts_with(['i', 'v', 'I', 'V']) => {
                         ts.next();
                         let colon = ts.next().unwrap();
@@ -108,15 +110,21 @@ fn parse(ts: TokenStream) -> TokenStream {
 fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
     let mut numerator = 1u8;
     let mut denominator = 1u8;
-    let mut is_negative = false;
+    let mut num_octaves_shift = 0i8;
+    let mut ties_to_next = false;
+    let mut ties_to_prev = false;
 
     while let Some(first) = ts.peek() {
-        if first.to_string() == "~" {
+        let first = first.to_string();
+        if first == "~" {
             ts.next();
             denominator *= 2;
-        } else if first.to_string() == "-" {
+        } else if first == "-" {
             ts.next();
-            is_negative = true;
+            num_octaves_shift -= 1;
+        } else if first == "_" {
+            ts.next();
+            ties_to_prev = true;
         } else {
             break;
         }
@@ -134,8 +142,13 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
         denominator *= 2;
         lit_text.replace_range(lit_text.len() - 1.., "");
     }
-    let n = match lit_text.parse::<i8>() {
-        Ok(n) => n * if is_negative { -1 } else { 1 },
+    if lit_text.ends_with('_') {
+        ties_to_next = true;
+        lit_text.replace_range(lit_text.len() - 1.., "");
+    }
+
+    let n = match lit_text.parse::<u8>() {
+        Ok(n) => n,
         Err(_) => panic!("unknown literal: {lit:?}"),
     };
     if let Some(TokenTree::Punct(punct)) = ts.peek() {
@@ -169,7 +182,10 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
             pitch: dsl::NotePitch {
                 enum_: dsl::NotePitchEnum::ScaleDegree(#n),
                 accidental: #accidental,
+                octave: #num_octaves_shift,
             },
+            ties_to_next: #ties_to_next,
+            ties_to_prev: #ties_to_prev,
         }));
     }
 }

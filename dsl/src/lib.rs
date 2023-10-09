@@ -48,12 +48,13 @@ impl Duration {
 #[derive(Debug, Clone, Copy)]
 pub struct NotePitch {
     pub enum_: NotePitchEnum,
+    pub octave: i8,
     pub accidental: Accidental,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotePitchEnum {
-    ScaleDegree(i8),
+    ScaleDegree(u8),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,25 +70,36 @@ pub enum Instruction {
 #[derive(Debug, Clone, Copy)]
 pub struct Harmony {
     pub scale: Scale,
-    pub degree: i8,
+    pub degree: u8,
+    pub add_7: bool,
 }
 
 impl Harmony {
-    pub fn parse(s: &str) -> Self {
+    pub fn parse(mut s: &str) -> Self {
+        let add_7 = s.ends_with('7');
+        if add_7 {
+            s = &s[..s.len() - 1];
+        }
+
         let scale = if s.chars().next().unwrap().is_uppercase() {
             Scale::Major
         } else {
             Scale::Minor
         };
-        match s.to_lowercase().as_str() {
-            "i" => Self { scale, degree: 1 },
-            "ii" => Self { scale, degree: 2 },
-            "iii" => Self { scale, degree: 3 },
-            "iv" => Self { scale, degree: 4 },
-            "v" => Self { scale, degree: 5 },
-            "vi" => Self { scale, degree: 6 },
-            "vii" => Self { scale, degree: 7 },
+        let degree = match s.to_lowercase().as_str() {
+            "i" => 1,
+            "ii" => 2,
+            "iii" => 3,
+            "iv" => 4,
+            "v" => 5,
+            "vi" => 6,
+            "vii" => 7,
             _ => panic!("unknown harmony: {}", s),
+        };
+        Self {
+            scale,
+            degree,
+            add_7,
         }
     }
 }
@@ -96,4 +108,6 @@ impl Harmony {
 pub struct Note {
     pub duration: Duration,
     pub pitch: NotePitch,
+    pub ties_to_next: bool,
+    pub ties_to_prev: bool,
 }

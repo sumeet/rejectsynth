@@ -40,7 +40,7 @@ mod songs {
             key E
             scale minor
 
-            III: ~4 ~3 ~2 ~3 , 4 ~-3 ~-1
+            III: ~4 ~3 ~2 ~3 , 4 ~-5 ~-7
 
             i: ~2, ~1, 1~.
 
@@ -48,15 +48,13 @@ mod songs {
 
             v: ~7 ~5 , 5~.
 
-            VI: ~5 ~6, ~5  ~4 , vi: 3. ~4 // should add 7th
+            VI: ~5 ~6, ~5  ~4 , vi7: 3. ~4
 
-            // the iv change actually happens half a beat earlier, but we don't have a way to express that yet...
-            III: ~5 ~-3 , ~-2, ~-1 , i: ~2 ~1 , 1. iv: ~1
+            III: ~5 ~-5 , ~-6, ~-7 , i: ~2 ~1 , 1_ iv: , _~1 ~1
 
             ~2 ~3 , 4~. i: ~3
 
-            // VII here should also have 7
-            ~4 ~5 VII: 6~.
+            ~4 ~5 VII7: 6~.
         }
     }
 }
@@ -159,26 +157,18 @@ const fn scale_ascending(scale: Scale) -> [i8; 7] {
     }
 }
 
-const fn scale_descending(scale: Scale) -> [i8; 7] {
-    match scale {
-        Scale::Major => [-1, -2, -2, -2, -1, -2, -2],
-        Scale::Minor => [-2, -1, -2, -2, -2, -1, -1],
-    }
-}
-
-fn scale_degree_to_semitones(scale: Scale, degree: i8) -> i8 {
+fn scale_degree_to_semitones(scale: Scale, degree: u8) -> i8 {
     if degree == 0 {
         panic!("scale degree cannot be 0, it doesn't make sense")
     }
     if degree == 1 {
         return 0;
     }
-    let (scale, num_to_take) = if degree > 0 {
-        (scale_ascending(scale), (degree - 1) as usize)
-    } else {
-        (scale_descending(scale), -(degree) as usize)
-    };
-    scale.iter().cycle().take(num_to_take).sum()
+    scale_ascending(scale)
+        .iter()
+        .cycle()
+        .take((degree - 1) as usize)
+        .sum()
 }
 
 struct SongContext {
@@ -231,6 +221,13 @@ impl SongContext {
             let semitones_to_5 = scale_degree_to_semitones(harmony.scale, 5);
             let freq_of_5 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_5);
             freqs.push(freq_of_5);
+
+            if harmony.add_7 {
+                // 7
+                let semitones_to_7 = scale_degree_to_semitones(harmony.scale, 7);
+                let freq_of_7 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_7);
+                freqs.push(freq_of_7);
+            }
         }
         freqs
     }
@@ -259,7 +256,14 @@ impl SongContext {
                     dsl::Accidental::Sharp => offset + 1,
                     dsl::Accidental::Flat => offset - 1,
                 };
-                shift_up_by_interval(self.freq_of_tonic(), offset)
+                let mut freq = shift_up_by_interval(self.freq_of_tonic(), offset);
+
+                if pitch.octave > 0 {
+                    freq *= 2.0f32.powf(pitch.octave as f32);
+                } else if pitch.octave < 0 {
+                    freq /= 2.0f32.powf(-pitch.octave as f32);
+                }
+                freq
             }
         }
     }
