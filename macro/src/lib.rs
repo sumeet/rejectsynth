@@ -59,6 +59,14 @@ fn parse(ts: TokenStream) -> TokenStream {
                             v.push(dsl::Instruction::SetScale(dsl::Scale::#scale));
                         });
                     }
+                    harmony if harmony.starts_with(['i', 'v', 'I', 'V']) => {
+                        ts.next();
+                        let colon = ts.next().unwrap();
+                        code.extend(quote! {
+                            v.push(dsl::Instruction::SetHarmony(dsl::Harmony::parse(#harmony)));
+                        });
+                        assert_eq!(colon.to_string(), ":", "expected colon");
+                    }
                     _ => panic!("unknown ident: {ident:?}"),
                 }
             }
