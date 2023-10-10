@@ -8,10 +8,10 @@ const TOKEN_TYPES = [
     'keyword.other.rejectsynth',
 ]
 
-const TOKEN_TYPE_INIDICES = TOKEN_TYPES.reduce((acc, type, index) => {
-    acc[type] = index;
-    return acc;
-}, {});
+const TOKEN_TYPE_INIDICES = {};
+for (const i in TOKEN_TYPES) {
+    TOKEN_TYPE_INIDICES[TOKEN_TYPES[i]] = i;
+}
 
 class MySemanticTokensProvider {
     async provideDocumentSemanticTokens(doc) {
