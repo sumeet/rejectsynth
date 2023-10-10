@@ -1,0 +1,29 @@
+[package]
+name = "rejectsynth"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rejectsynth"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "rejectplay"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+macro = { path = "./macro" }
+dsl = { path = "./dsl" }
+wasm-bindgen = "*"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pulse = { version = "2.0", package = "libpulse-binding" }
+psimple = { version = "2.0", package = "libpulse-simple-binding" }
+
+## wasm target only dependencies
+#[target.'cfg(target_arch = "wasm32")'.dependencies]
+
+[workspace]
+members = ["./", "macro", "dsl"]

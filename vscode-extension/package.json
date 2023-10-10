@@ -1,0 +1,41 @@
+{
+  "name": "vscode-rejectsynth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo OK"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "speaker": "^0.5.4"
+  },
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "activationEvents": [
+    "onLanguage:rejectsynth"
+  ],
+  "configurationDefaults": {
+    "rejectsynth": {
+      "editor.semanticHighlighting.enabled": true
+    }
+  },
+  "contributes": {
+    "configuration": {
+      "properties": {}
+    },
+    "languages": [
+      {
+        "id": "rejectsynth",
+        "aliases": [
+          "rejectsynth"
+        ],
+        "extensions": [
+          ".rej"
+        ]
+      }
+    ]
+  }
+}

@@ -1,18 +1,17 @@
-#![feature(iter_array_chunks)]
-#![feature(anonymous_lifetime_in_impl_trait)]
-#![feature(array_windows)]
-
 use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
-use psimple::Simple;
-use pulse::sample::{Format, Spec};
-use pulse::stream::Direction;
 use r#macro::m;
+use wasm_bindgen::prelude::wasm_bindgen;
 
-const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
-const BUFFER_SIZE: usize = 1024;
-const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
+pub const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 
-mod songs {
+#[wasm_bindgen]
+pub fn sup() -> Vec<f32> {
+    let mut ctx = SongContext::default();
+    let song = songs::kalm();
+    ctx.play(&song).collect()
+}
+
+pub mod songs {
     use super::*;
 
     #[allow(dead_code)]
@@ -56,20 +55,6 @@ mod songs {
 
             ~4 ~5 VII7: 6~.
         }
-    }
-}
-
-fn main() {
-    let pulse = init_pulse();
-    let mut ctx = SongContext::default();
-    let mut buffer = [0f32; BUFFER_SIZE];
-    let song = songs::kalm();
-    for chunk in ctx.play(&song).array_chunks::<BUFFER_SIZE_HALF>() {
-        for (i, &note) in chunk.iter().enumerate() {
-            buffer[i * 2] = note;
-            buffer[i * 2 + 1] = note;
-        }
-        pulse.write(as_u8_slice(&buffer)).unwrap();
     }
 }
 
@@ -171,7 +156,7 @@ fn scale_degree_to_semitones(scale: Scale, degree: u8) -> i8 {
         .sum()
 }
 
-struct SongContext {
+pub struct SongContext {
     bpm: u16,
     key: Key,
     scale: Scale,
@@ -180,7 +165,7 @@ struct SongContext {
 }
 
 impl SongContext {
-    fn default() -> Self {
+    pub fn default() -> Self {
         Self::new(
             120,
             Key {
@@ -272,7 +257,7 @@ impl SongContext {
         to_freq(self.key.abc, self.key.accidental)
     }
 
-    fn play<'a>(&'a mut self, instrs: &'a [Instruction]) -> impl Iterator<Item = f32> + 'a {
+    pub fn play<'a>(&'a mut self, instrs: &'a [Instruction]) -> impl Iterator<Item = f32> + 'a {
         let mut skip_to_note_index = None;
         'outer: for i in 0..instrs.len() {
             if matches!(instrs[i], Instruction::SkipToNote) {
@@ -317,36 +302,5 @@ impl SongContext {
                 }
             })
             .flatten()
-    }
-}
-
-fn init_pulse() -> Simple {
-    let spec = Spec {
-        format: Format::F32le,
-        channels: 2,
-        rate: SAMPLE_RATE as _,
-    };
-    assert!(spec.is_valid());
-
-    let s = Simple::new(
-        None,                // Use the default server
-        "reject synth",      // Our application’s name
-        Direction::Playback, // We want a playback stream
-        None,                // Use the default device
-        "synth",             // Description of our stream
-        &spec,               // Our sample format
-        None,                // Use default channel map
-        None,                // Use default buffering attributes
-    )
-    .unwrap();
-    s
-}
-
-fn as_u8_slice<T>(input: &[T]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            input.as_ptr() as *const u8,
-            input.len() * std::mem::size_of::<T>(),
-        )
     }
 }
