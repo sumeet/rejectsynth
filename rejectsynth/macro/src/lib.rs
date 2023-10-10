@@ -159,7 +159,7 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
     }
 
     while let Some(TokenTree::Punct(punct)) = ts.peek() {
-        let no_ws = lit.span().end().column == punct.span().start().column;
+        let no_ws = lit.span().end().column() == punct.span().start().column();
         if punct.to_string() == "~" && no_ws {
             if numerator == 1 {
                 numerator = 2

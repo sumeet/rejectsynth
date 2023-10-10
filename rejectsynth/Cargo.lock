@@ -127,6 +127,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
+name = "peg"
+version = "0.8.1"
+source = "git+https://github.com/kevinmehall/rust-peg.git#a85e71b1c10b1dd2928842a647cd7fa7c2e5ad74"
+dependencies = [
+ "peg-macros",
+ "peg-runtime",
+]
+
+[[package]]
+name = "peg-macros"
+version = "0.8.1"
+source = "git+https://github.com/kevinmehall/rust-peg.git#a85e71b1c10b1dd2928842a647cd7fa7c2e5ad74"
+dependencies = [
+ "peg-runtime",
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "peg-runtime"
+version = "0.8.1"
+source = "git+https://github.com/kevinmehall/rust-peg.git#a85e71b1c10b1dd2928842a647cd7fa7c2e5ad74"
+
+[[package]]
 name = "pkg-config"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -158,6 +182,7 @@ dependencies = [
  "libpulse-binding",
  "libpulse-simple-binding",
  "macro",
+ "peg",
  "wasm-bindgen",
 ]
 

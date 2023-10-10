@@ -3,6 +3,7 @@ const Speaker = require('speaker');
 
 const reject = require('../build/wasm/rejectsynth.js');
 
+// https://www.sublimetext.com/docs/scope_naming.html#keyword
 const TOKEN_TYPES = [
     'keyword.other.rejectsynth',
 ]

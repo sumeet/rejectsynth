@@ -13,17 +13,40 @@ const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 
 fn main() {
-    let pulse = init_pulse();
-    let mut ctx = lib::SongContext::default();
-    let mut buffer = [0f32; BUFFER_SIZE];
-    let song = lib::songs::kalm();
-    for chunk in ctx.play(&song).array_chunks::<BUFFER_SIZE_HALF>() {
-        for (i, &note) in chunk.iter().enumerate() {
-            buffer[i * 2] = note;
-            buffer[i * 2 + 1] = note;
-        }
-        pulse.write(as_u8_slice(&buffer)).unwrap();
-    }
+    let song = r#"bpm 70
+key E
+scale minor
+
+III: ~4 ~3 ~2 ~3 , 4 ~-5 ~-7
+
+i: ~2, ~1, 1~.
+
+iv: ~1 ~5 ~4 ~3 , VII: 4. ~~5 ~~6#
+
+v: ~7 ~5 , 5~.
+
+VI: ~5 ~6, ~5  ~4 , vi7: 3. ~4
+
+III: ~5 ~-5 , ~-6, ~-7 , i: ~2 ~1 , 1_ iv: , _~1 ~1
+
+~2 ~3 , 4~. i: ~3
+
+~4 ~5 VII7: 6~.
+"#;
+    let parsed = lib::grammar::song(song).unwrap();
+    dbg!(parsed);
+
+    // let pulse = init_pulse();
+    // let mut ctx = lib::SongContext::default();
+    // let mut buffer = [0f32; BUFFER_SIZE];
+    // let song = lib::songs::kalm();
+    // for chunk in ctx.play(&song).array_chunks::<BUFFER_SIZE_HALF>() {
+    //     for (i, &note) in chunk.iter().enumerate() {
+    //         buffer[i * 2] = note;
+    //         buffer[i * 2 + 1] = note;
+    //     }
+    //     pulse.write(as_u8_slice(&buffer)).unwrap();
+    // }
 }
 
 fn as_u8_slice<T>(input: &[T]) -> &[u8] {

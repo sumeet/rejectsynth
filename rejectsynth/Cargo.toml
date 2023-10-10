@@ -17,6 +17,7 @@ path = "src/main.rs"
 macro = { path = "./macro" }
 dsl = { path = "./dsl" }
 wasm-bindgen = "*"
+peg = { git = "https://github.com/kevinmehall/rust-peg.git" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pulse = { version = "2.0", package = "libpulse-binding" }

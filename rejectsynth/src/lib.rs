@@ -1,8 +1,12 @@
+mod parser;
+
 use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
 use r#macro::m;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 pub const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
+
+pub use parser::grammar;
 
 #[wasm_bindgen]
 pub fn sup() -> Vec<f32> {
