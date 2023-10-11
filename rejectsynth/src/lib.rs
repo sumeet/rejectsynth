@@ -10,9 +10,13 @@ pub use parser::grammar;
 
 // this is historical for playing audio
 #[wasm_bindgen]
-pub fn sup() -> Vec<f32> {
+pub fn samples(song_text: &str) -> Vec<f32> {
     let mut ctx = SongContext::default();
-    let song = songs::kalm();
+    let song = grammar::song(song_text)
+        .unwrap()
+        .iter()
+        .map(|s| s.instruction)
+        .collect::<Vec<_>>();
     ctx.play(&song).collect()
 }
 

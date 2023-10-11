@@ -23,6 +23,24 @@
     }
   },
   "contributes": {
+    "commands": [
+      {
+        "command": "rejectsynth.playFromHere",
+        "title": "Play from Here"
+      },
+      {
+        "command": "rejectsynth.stopPlaying",
+        "title": "Stop Playing"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "rejectsynth.playFromHere",
+          "when": "editorTextFocus"
+        }
+      ]
+    },
     "configuration": {
       "properties": {}
     },
