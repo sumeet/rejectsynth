@@ -60,6 +60,31 @@ function resetSpeaker() {
 
 
 function activate(context) {
+  ////////////////////////////
+  // EXPERIMENT
+  ////////////////////////////
+  let editor = vscode.window.activeTextEditor;
+  let currentPosition = 0;
+  const decorationType = vscode.window.createTextEditorDecorationType({
+    backgroundColor: 'rgba(220, 220, 220, 0.5)'
+  });
+
+  if (editor) {
+    setInterval(() => {
+      const text = editor.document.getText();
+      const nextSpace = text.indexOf(' ', currentPosition + 1);
+      const start = editor.document.positionAt(currentPosition);
+      const end = editor.document.positionAt(nextSpace);
+
+      editor.setDecorations(decorationType, [new vscode.Range(start, end)]);
+      currentPosition = nextSpace + 1;
+
+    }, 1000);
+  }
+  ////////////////////////////
+  // END OF EXPERIMENT
+  ////////////////////////////
+
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'rejectsynth' },
     new MySemanticTokensProvider(),
@@ -110,19 +135,6 @@ module.exports = {
 // cursor moving stuff, which we'll go later
 //////////////////////////////////////////////////
 
-// let interval = setInterval(() => {
-//   let editor = vscode.window.activeTextEditor;
-//   if (editor) {
-//     let position = editor.selection.active;
-//     let newPosition = position.with(position.line, position.character + 1);
-//     let newSelection = new vscode.Selection(newPosition, newPosition);
-//     editor.selection = newSelection;
-//   }
-// }, 100);
-//
-// context.subscriptions.push({
-//   dispose: () => clearInterval(interval)
-// });
 
 //////////////////////////////////////////////////
 // song playing stuff, which we'll do later
