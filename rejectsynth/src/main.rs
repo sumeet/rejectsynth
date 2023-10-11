@@ -19,7 +19,14 @@ fn main() {
 key E
 scale minor
 
-III: ~4 ~3 ~2 ~3 , 4 ~-5
+III: ~4 ~3 ~2 ~3 , 4 ~-5 ~-7
+i: ~2 , ~1 , 1~.
+iv: ~1 ~5 ~4 ~3 , VII: 4. ~~5 ~~6#
+v: ~7 ~5 , 5~.
+VI: ~5 ~6, ~5  ~4 , vi7: 3. ~4
+III: ~5 ~-5 , ~-6, ~-7 , i: ~2 ~1 , 1_ iv: , _~1 ~1
+~2 ~3 , 4~. i: ~3
+~4 ~5 VII7: 6~.
 "#;
 
     let song = lib::grammar::song(song).unwrap();

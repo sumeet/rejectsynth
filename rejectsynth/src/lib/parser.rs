@@ -10,6 +10,7 @@ pub struct SpannedInstruction {
 peg::parser! {
     pub grammar grammar() for str {
         pub rule song() -> Vec<SpannedInstruction>
+            // TODO: will handle commas for reals at some point ithink
             // = instr:spanned_instruction() ** _ _? { instr }
             = instr:spanned_instruction() ** comma_or_space() _? { instr }
 
@@ -29,9 +30,13 @@ peg::parser! {
 
         pub rule instruction() -> Instruction
             = set_bpm() / set_key() / set_scale() / set_harmony() / play_note()
+            / skip_to_note()
+
+        rule skip_to_note() -> Instruction
+            = ">" { Instruction::SkipToNote }
 
         rule set_bpm() -> Instruction
-            = "bpm" _ bpm:int() { Instruction::SetBPM(bpm as _) }
+            = "bpm" _ bpm:uint() { Instruction::SetBPM(bpm as _) }
 
         rule set_key() -> Instruction
             = "key" _ key:key_name() { Instruction::SetKey(key) }
@@ -40,27 +45,46 @@ peg::parser! {
             = note:note() { Instruction::PlayNote(note) }
 
         rule note() -> dsl::Note
-            = num_half:note_mul_2() pitch:pitch() {
+            = ties_to_prev:tie() num_half:note_mul_2()  pitch:pitch() num_twice:note_mul_2() is_dotted:dot() ties_to_next:tie() {
+                let mut numerator = if num_twice == 0 { 1 } else { num_twice * 2 };
+                let mut denominator = if num_half == 0 { 1 } else { num_half * 2 };
+                if is_dotted {
+                    numerator *= 3;
+                    denominator *= 2;
+                }
                 dsl::Note {
-                    duration: dsl::Duration::new(1, num_half),
+                    duration: dsl::Duration::new(numerator, denominator),
                     pitch,
-                    ties_to_next: false,
-                    ties_to_prev: false,
+                    ties_to_next,
+                    ties_to_prev,
                 }
             }
 
+        rule tie() -> bool
+            = "_" { true }
+            / "" { false }
+
+        rule dot() -> bool
+            = "." { true }
+            / "" { false }
+
         rule note_mul_2() -> u8
-            = s:"~"+ { (s.len() as u8) * 2 }
-            / "" { 1 }
+            = s:"~"+ { (s.len() as u8) }
+            / "" { 0 }
 
         rule pitch() -> dsl::NotePitch
-            = num:int() accidental:accidental() {
+            = octave:octave() num:uint() accidental:accidental() {
                 dsl::NotePitch {
                     enum_: dsl::NotePitchEnum::ScaleDegree(num as _),
                     accidental,
-                    octave: 0,
+                    octave,
                 }
             }
+
+        rule octave() -> i8
+            = minuses:"-"+ { (minuses.len() as i8) * -1 }
+            / pluses:"+"+ { (pluses.len() as i8) * 1 }
+            / "" { 0 }
 
         rule accidental() -> dsl::Accidental
             = "#" { dsl::Accidental::Sharp }
@@ -115,8 +139,8 @@ peg::parser! {
             = "7" { true }
             / "" { false }
 
-        rule int() -> i128
-            = int:$("0" / "-"? ['1' ..= '9']+ ['0' ..= '9']*) {? int.parse().or(Err("not a number")) }
+        rule uint() -> u128
+            = int:$("0" / ['1' ..= '9']+ ['0' ..= '9']*) {? int.parse().or(Err("not a number")) }
         rule onespace() = [' ' | '\t']
         rule nbspace() = onespace()+
         rule newline() = "\n" / "\r\n"
