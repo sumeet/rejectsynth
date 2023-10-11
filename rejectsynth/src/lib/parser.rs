@@ -10,7 +10,13 @@ pub struct SpannedInstruction {
 peg::parser! {
     pub grammar grammar() for str {
         pub rule song() -> Vec<SpannedInstruction>
-            = instr:spanned_instruction() ** _ _? { instr }
+            // = instr:spanned_instruction() ** _ _? { instr }
+            = instr:spanned_instruction() ** comma_or_space() _? { instr }
+
+        // TODO: get rid of this, commas are gonna have real meaning
+        rule comma_or_space()
+            = _? "," _?
+            / _
 
         pub rule spanned_instruction() -> SpannedInstruction
             = l:position!() instruction:instruction() r:position!() {
@@ -31,7 +37,35 @@ peg::parser! {
             = "key" _ key:key_name() { Instruction::SetKey(key) }
 
         rule play_note() -> Instruction
-            = note:note() { Instruction::PlayNote { note } }
+            = note:note() { Instruction::PlayNote(note) }
+
+        rule note() -> dsl::Note
+            = num_half:note_mul_2() pitch:pitch() {
+                dsl::Note {
+                    duration: dsl::Duration::new(1, num_half),
+                    pitch,
+                    ties_to_next: false,
+                    ties_to_prev: false,
+                }
+            }
+
+        rule note_mul_2() -> u8
+            = s:"~"+ { (s.len() as u8) * 2 }
+            / "" { 1 }
+
+        rule pitch() -> dsl::NotePitch
+            = num:int() accidental:accidental() {
+                dsl::NotePitch {
+                    enum_: dsl::NotePitchEnum::ScaleDegree(num as _),
+                    accidental,
+                    octave: 0,
+                }
+            }
+
+        rule accidental() -> dsl::Accidental
+            = "#" { dsl::Accidental::Sharp }
+            / "b" { dsl::Accidental::Flat }
+            / "" { dsl::Accidental::Natural }
 
         // add support for accidentals later
         rule key_name() -> dsl::Key
