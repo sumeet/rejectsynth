@@ -8,11 +8,103 @@ pub const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 
 pub use parser::grammar;
 
+// this is historical for playing audio
 #[wasm_bindgen]
 pub fn sup() -> Vec<f32> {
     let mut ctx = SongContext::default();
     let song = songs::kalm();
     ctx.play(&song).collect()
+}
+
+#[wasm_bindgen]
+pub struct Syntax {
+    pub line_no: usize,
+    pub col_no: usize,
+    pub len: usize,
+    node_type: String,
+}
+
+#[wasm_bindgen]
+impl Syntax {
+    #[wasm_bindgen(getter)]
+    pub fn node_type(&self) -> String {
+        self.node_type.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_node_type(&mut self, s: &str) {
+        self.node_type = s.to_string();
+    }
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    pub fn log(s: &str);
+}
+
+#[macro_export]
+macro_rules! console_log {
+    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
+}
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    std::panic::set_hook(Box::new(console_error_panic_hook));
+}
+
+fn console_error_panic_hook(info: &std::panic::PanicInfo) {
+    let msg = match info.payload().downcast_ref::<&str>() {
+        Some(s) => *s,
+        None => "Box<Any>",
+    };
+    let location = info.location().unwrap(); // The current implementation always returns Some
+    let description = format!(
+        "panic occurred in file '{}' at line {}: {}",
+        location.file(),
+        location.line(),
+        msg
+    );
+    log(&description);
+}
+
+#[wasm_bindgen]
+pub fn syntax(s: &str) -> Vec<Syntax> {
+    let positions_of_line_breaks = s.match_indices('\n').map(|(i, _)| i).collect::<Vec<_>>();
+    let spanned_instructions = grammar::song(s).unwrap();
+
+    spanned_instructions
+        .iter()
+        .map(|spanned_instruction| {
+            let instruction = &spanned_instruction.instruction;
+            let (l, r) = (spanned_instruction.l, spanned_instruction.r);
+            let line_no = positions_of_line_breaks
+                .iter()
+                .position(|&pos| pos > l)
+                .unwrap_or(positions_of_line_breaks.len());
+            let col_no = if line_no == 0 {
+                l
+            } else {
+                l - positions_of_line_breaks[line_no - 1] - 1
+            };
+            let len = r - l;
+            let node_type = match instruction {
+                Instruction::SetBPM(_) => "SetBPM",
+                Instruction::SetKey(_) => "SetKey",
+                Instruction::SetScale(_) => "SetScale",
+                Instruction::PlayNote { .. } => "PlayNote",
+                Instruction::SkipToNote => "SkipToNote",
+                Instruction::SetHarmony(_) => "SetHarmony",
+            }
+            .to_string();
+            Syntax {
+                line_no,
+                col_no,
+                len,
+                node_type,
+            }
+        })
+        .collect()
 }
 
 pub mod songs {

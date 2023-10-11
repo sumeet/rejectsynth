@@ -7,7 +7,7 @@ use psimple::Simple;
 use pulse::sample::{Format, Spec};
 use pulse::stream::Direction;
 
-mod lib;
+use rejectsynth as lib;
 
 const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;

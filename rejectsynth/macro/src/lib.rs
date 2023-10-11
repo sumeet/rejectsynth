@@ -79,7 +79,7 @@ fn parse(ts: TokenStream) -> TokenStream {
                         code.extend(note_literal(&mut ts));
                     }
                     "," => {
-                        println!("skipping punctuation for now: {t:?}");
+                        // println!("skipping punctuation for now: {t:?}");
                         ts.next();
                     }
                     ">" => {
@@ -103,7 +103,6 @@ fn parse(ts: TokenStream) -> TokenStream {
             v
         }
     };
-    println!("{}", code);
     code.into()
 }
 
@@ -192,8 +191,8 @@ fn note_literal(ts: &mut Peekable<IntoIter>) -> TokenStream2 {
 
 #[proc_macro]
 pub fn m(ts: TokenStream) -> TokenStream {
-    for t in ts.clone() {
-        println!("t: {:?}", t);
-    }
+    // for t in ts.clone() {
+    //     println!("t: {:?}", t);
+    // }
     parse(ts)
 }

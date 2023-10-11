@@ -5,18 +5,18 @@ edition = "2021"
 
 [lib]
 name = "rejectsynth"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "rejectplay"
-path = "src/main.rs"
+path = "src/bin/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 macro = { path = "./macro" }
 dsl = { path = "./dsl" }
-wasm-bindgen = "*"
+wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen "}
 peg = { git = "https://github.com/kevinmehall/rust-peg.git" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
