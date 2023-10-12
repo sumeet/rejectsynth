@@ -103,11 +103,14 @@ function activate(context) {
       if (!editor) return;
       const position = editor.selection.active;
       console.log(position);
-      let samples = reject.samples(editor.document.getText());
 
       resetSpeaker();
+
+      let samples = reject.samples(editor.document.getText());
       const buffer = Buffer.from(samples.buffer);
-      const bufStreamer = new BufStreamer(buffer);
+      // const bufStreamer = new BufStreamer(buffer);
+      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
+      const bufStreamer = new IterStreamer(iter);
 
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
@@ -143,9 +146,36 @@ module.exports = {
 
 const { Readable } = require('stream');
 
+class IterStreamer extends Readable {
+  constructor(iter) {
+    super();
+    this.iter = iter;
+    this.buffer = [];
+  }
+
+  _read(size) {
+    console.log('reading for size', size);
+    if (this.buffer.length > 0) {
+      this.push(this.buffer.slice(0, size));
+      this.buffer = this.buffer.slice(size);
+      console.log('pushed', size, 'bytes')
+    }
+
+    while (this.buffer.length === 0) {
+      const playbackResult = this.iter.play_next();
+      this.buffer = Buffer.from(playbackResult.samples);
+      if (playbackResult.is_done) return this.push(null);
+    }
+
+    console.log("about to push buffer of size", this.buffer.length);
+    this.push(this.buffer.slice(0, size));
+    this.buffer = this.buffer.slice(size);
+  }
+}
+
 class BufStreamer extends Readable {
-  constructor(buffer, options) {
-    super(options);
+  constructor(buffer) {
+    super();
     this.buffer = buffer;
     this.position = 0;
   }

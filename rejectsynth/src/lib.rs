@@ -6,7 +6,56 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 pub const SAMPLE_RATE: f32 = 44100.0; // 44.1 kHz
 
+use crate::parser::SpannedInstruction;
 pub use parser::grammar;
+
+#[wasm_bindgen]
+pub struct WasmSongIterator {
+    ctx: SongContext,
+    song: Vec<SpannedInstruction>,
+    i: usize,
+}
+
+#[wasm_bindgen]
+impl WasmSongIterator {
+    #[wasm_bindgen]
+    pub fn from_song_text(song_text: &str) -> Self {
+        Self {
+            ctx: SongContext::default(),
+            song: grammar::song(song_text).unwrap(),
+            i: 0,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn play_next(&mut self) -> PlaybackResult {
+        let samples = match self.ctx.eval(&self.song[self.i].instruction) {
+            Some(iter) => iter.collect(),
+            None => vec![],
+        };
+        self.i += 1;
+        PlaybackResult {
+            samples,
+            instruction_num: self.i,
+            is_done: self.i >= self.song.len(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub struct PlaybackResult {
+    samples: Vec<f32>,
+    pub instruction_num: usize,
+    pub is_done: bool,
+}
+
+#[wasm_bindgen]
+impl PlaybackResult {
+    #[wasm_bindgen(getter)]
+    pub fn samples(&self) -> Vec<f32> {
+        self.samples.clone()
+    }
+}
 
 // this is historical for playing audio
 #[wasm_bindgen]
@@ -72,12 +121,16 @@ fn console_error_panic_hook(info: &std::panic::PanicInfo) {
     log(&description);
 }
 
-#[wasm_bindgen]
-pub fn syntax(s: &str) -> Vec<Syntax> {
+struct ParseResult {
+    spanned_instructions: Vec<SpannedInstruction>,
+    syntaxes: Vec<Syntax>,
+}
+
+fn parse(s: &str) -> ParseResult {
     let positions_of_line_breaks = s.match_indices('\n').map(|(i, _)| i).collect::<Vec<_>>();
     let spanned_instructions = grammar::song(s).unwrap();
 
-    spanned_instructions
+    let syntaxes = spanned_instructions
         .iter()
         .map(|spanned_instruction| {
             let instruction = &spanned_instruction.instruction;
@@ -108,7 +161,16 @@ pub fn syntax(s: &str) -> Vec<Syntax> {
                 node_type,
             }
         })
-        .collect()
+        .collect();
+    ParseResult {
+        spanned_instructions,
+        syntaxes,
+    }
+}
+
+#[wasm_bindgen]
+pub fn syntax(s: &str) -> Vec<Syntax> {
+    parse(s).syntaxes
 }
 
 pub mod songs {
@@ -358,49 +420,53 @@ impl SongContext {
     }
 
     pub fn play<'a>(&'a mut self, instrs: &'a [Instruction]) -> impl Iterator<Item = f32> + 'a {
-        let mut skip_to_note_index = None;
-        'outer: for i in 0..instrs.len() {
-            if matches!(instrs[i], Instruction::SkipToNote) {
-                for j in (i + 1)..instrs.len() {
-                    if matches!(instrs[j], Instruction::PlayNote { .. }) {
-                        skip_to_note_index = Some(j);
-                        break 'outer;
-                    }
-                }
-                panic!("skip to note must be followed by a note")
-            }
-        }
+        // let mut skip_to_note_index = None;
+        // 'outer: for i in 0..instrs.len() {
+        //     if matches!(instrs[i], Instruction::SkipToNote) {
+        //         for j in (i + 1)..instrs.len() {
+        //             if matches!(instrs[j], Instruction::PlayNote { .. }) {
+        //                 skip_to_note_index = Some(j);
+        //                 break 'outer;
+        //             }
+        //         }
+        //         panic!("skip to note must be followed by a note")
+        //     }
+        // }
 
         instrs
             .iter()
             .enumerate()
-            .flat_map(move |(i, inst)| match inst {
-                Instruction::SetBPM(bpm) => {
-                    self.bpm = *bpm;
-                    None
-                }
-                Instruction::SetKey(key) => {
-                    self.key = *key;
-                    None
-                }
-                Instruction::SetScale(scale) => {
-                    self.scale = *scale;
-                    None
-                }
-                Instruction::PlayNote(note) => {
-                    if let Some(skip_to_note_index) = skip_to_note_index {
-                        if i < skip_to_note_index {
-                            return None;
-                        }
-                    }
-                    Some(self.render_note(*note))
-                }
-                Instruction::SkipToNote => None,
-                Instruction::SetHarmony(harmony) => {
-                    self.harmony = Some(*harmony);
-                    None
-                }
-            })
+            .flat_map(move |(_i, inst)| self.eval(inst))
             .flatten()
+    }
+
+    fn eval(&mut self, inst: &Instruction) -> Option<impl Iterator<Item = f32>> {
+        match inst {
+            Instruction::SetBPM(bpm) => {
+                self.bpm = *bpm;
+                None
+            }
+            Instruction::SetKey(key) => {
+                self.key = *key;
+                None
+            }
+            Instruction::SetScale(scale) => {
+                self.scale = *scale;
+                None
+            }
+            Instruction::PlayNote(note) => {
+                // if let Some(skip_to_note_index) = skip_to_note_index {
+                //     if i < skip_to_note_index {
+                //         return None;
+                //     }
+                // }
+                Some(self.render_note(*note))
+            }
+            Instruction::SkipToNote => None,
+            Instruction::SetHarmony(harmony) => {
+                self.harmony = Some(*harmony);
+                None
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 use dsl::Instruction;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SpannedInstruction {
     pub instruction: Instruction,
     pub l: usize,
