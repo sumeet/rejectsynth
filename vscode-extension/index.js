@@ -108,9 +108,9 @@ function activate(context) {
 
       let samples = reject.samples(editor.document.getText());
       const buffer = Buffer.from(samples.buffer);
-      // const bufStreamer = new BufStreamer(buffer);
-      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
-      const bufStreamer = new IterStreamer(iter);
+      const bufStreamer = new BufStreamer(buffer);
+      // const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
+      // const bufStreamer = new IterStreamer(iter);
 
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
@@ -150,26 +150,27 @@ class IterStreamer extends Readable {
   constructor(iter) {
     super();
     this.iter = iter;
-    this.buffer = [];
+    this.buffer = Buffer.from(Float32Array.from([1.0])).slice(0);
   }
 
   _read(size) {
-    console.log('reading for size', size);
-    if (this.buffer.length > 0) {
-      this.push(this.buffer.slice(0, size));
-      this.buffer = this.buffer.slice(size);
-      console.log('pushed', size, 'bytes')
-    }
-
-    while (this.buffer.length === 0) {
+    while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      this.buffer = Buffer.from(playbackResult.samples);
-      if (playbackResult.is_done) return this.push(null);
+      let newSamples = playbackResult.samples;
+      this.buffer = Buffer.concat(
+        [this.buffer, Buffer.from(newSamples)]);
     }
-
-    console.log("about to push buffer of size", this.buffer.length);
-    this.push(this.buffer.slice(0, size));
-    this.buffer = this.buffer.slice(size);
+    if (this.buffer.length > 0) {
+      let chunk = this.buffer.slice(0, size);
+      console.log(`pushing ${chunk.length} bytes`);
+      console.log('the chunk', chunk);
+      this.push(chunk);
+      this.buffer = this.buffer.slice(size);
+      if (this.buffer.length === 0) this.push(null);
+    } else {
+      console.log('end of stream');
+      this.push(null);
+    }
   }
 }
 
@@ -180,12 +181,16 @@ class BufStreamer extends Readable {
     this.position = 0;
   }
 
+  // bad version: 77 iterations of full size + 3720
+
   _read(size) {
     const chunk = this.buffer.slice(this.position, this.position + size);
+    console.log(`pushing ${chunk.length} bytes`)
     this.push(chunk);
     this.position += size;
 
     if (this.position >= this.buffer.length) {
+      console.log('end of stream');
       this.push(null);
     }
   }

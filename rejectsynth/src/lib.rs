@@ -28,6 +28,11 @@ impl WasmSongIterator {
     }
 
     #[wasm_bindgen]
+    pub fn is_done(&self) -> bool {
+        self.i >= self.song.len()
+    }
+
+    #[wasm_bindgen]
     pub fn play_next(&mut self) -> PlaybackResult {
         let samples = match self.ctx.eval(&self.song[self.i].instruction) {
             Some(iter) => iter.collect(),
