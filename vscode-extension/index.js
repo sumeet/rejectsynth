@@ -1,8 +1,6 @@
 const vscode = require('vscode');
 const Speaker = require('speaker');
 
-
-
 const reject = require('../build/wasm/rejectsynth.js');
 
 // https://www.sublimetext.com/docs/scope_naming.html#keyword
@@ -48,27 +46,16 @@ class MySemanticTokensProvider {
   }
 }
 
-let stream;
-const { AudioServer } = require('./audioworklet/build/Release/audioworklet');
-const audioServer = new AudioServer();
-console.log(audioServer);
-const device = audioServer.getDevices().outputDevices.find((device) => device.preferred.all);
-console.log('found device', device);
-stream = audioServer.initOutputStream(device.id, {
-  format: AudioServer.F32LE,
-  sampleRate: 44100,
-  channels: 1,
-});
+let speaker;
 
-function resetStream() {
-  // if (speaker) speaker.close();
-  // speaker = new Speaker({
-  //   channels: 1,
-  //   bitDepth: 32,
-  //   sampleRate: 44100,
-  //   float: true,
-  // });
-  // if (stream) stream.close();
+function resetSpeaker() {
+  if (speaker) speaker.close();
+  speaker = new Speaker({
+    channels: 1,
+    bitDepth: 32,
+    sampleRate: 44100,
+    float: true,
+  });
 }
 
 const decorationType = vscode.window.createTextEditorDecorationType({
@@ -100,7 +87,7 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rejectsynth.stopPlaying', () => {
-      // resetStream();
+      resetSpeaker();
     })
   );
 
@@ -110,57 +97,21 @@ function activate(context) {
       if (!editor) return;
       const position = editor.selection.active;
 
-      // resetStream();
+      resetSpeaker();
 
       const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
-      stream.start();
-      let currentSample = 0;
+      const bufStreamer = new IterStreamer(iter);
 
-      function pushAudio() {
-        if (iter.is_done()) {
-          return;
-        }
+      let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+      disposableStatusBarItem.text = `$(stop) Stop`;
+      disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
+      disposableStatusBarItem.show();
+      speaker.on('close', () => {
+        clearDecorations();
+        disposableStatusBarItem.dispose();
+      });
 
-        const playbackResult = iter.play_next();
-        const framesWritten = stream.pushAudioChunk(undefined, playbackResult.samples);
-
-        const latency = stream.getLatency();
-        const currentPosition = stream.getPosition();
-        const targetPosition = currentPosition + latency;
-
-        // Schedule highlight function to be called when playback reaches target position.
-        function checkPosition() {
-          if (stream.getPosition() >= targetPosition) {
-            highlight(playbackResult.syntax);
-          } else {
-            setTimeout(checkPosition, 1);
-          }
-        }
-
-        // checkPosition();
-
-        currentSample += framesWritten;
-
-        // let timeout = (framesWritten / 44100) * 1000;
-        setTimeout(pushAudio, 1000);
-        // pushAudio();
-      }
-
-
-      pushAudio();
-
-
-      // const bufStreamer = new IterStreamer(iter);
-      // let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-      // disposableStatusBarItem.text = `$(stop) Stop`;
-      // disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
-      // disposableStatusBarItem.show();
-      // stream.on('close', () => {
-      //   clearDecorations();
-      //   disposableStatusBarItem.dispose();
-      // });
-
-      // bufStreamer.pipe(stream);
+      bufStreamer.pipe(speaker);
     })
   );
 }
@@ -204,7 +155,6 @@ class IterStreamer extends Readable {
       this.push(this.buffer.slice(0, size));
       this.buffer = this.buffer.slice(size);
     } else {
-      clearDecorations();
       this.push(null);
     }
   }
