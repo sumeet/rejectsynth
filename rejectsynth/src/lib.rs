@@ -13,6 +13,7 @@ pub use parser::grammar;
 pub struct WasmSongIterator {
     ctx: SongContext,
     song: Vec<SpannedInstruction>,
+    syntaxes: Vec<Syntax>,
     i: usize,
 }
 
@@ -20,9 +21,11 @@ pub struct WasmSongIterator {
 impl WasmSongIterator {
     #[wasm_bindgen]
     pub fn from_song_text(song_text: &str) -> Self {
+        let parse_result = parse(song_text);
         Self {
             ctx: SongContext::default(),
-            song: grammar::song(song_text).unwrap(),
+            song: parse_result.spanned_instructions,
+            syntaxes: parse_result.syntaxes,
             i: 0,
         }
     }
@@ -38,20 +41,16 @@ impl WasmSongIterator {
             Some(iter) => iter.collect(),
             None => vec![],
         };
+        let syntax = self.syntaxes[self.i].clone();
         self.i += 1;
-        PlaybackResult {
-            samples,
-            instruction_num: self.i,
-            is_done: self.i >= self.song.len(),
-        }
+        PlaybackResult { samples, syntax }
     }
 }
 
 #[wasm_bindgen]
 pub struct PlaybackResult {
     samples: Vec<f32>,
-    pub instruction_num: usize,
-    pub is_done: bool,
+    syntax: Syntax,
 }
 
 #[wasm_bindgen]
@@ -59,6 +58,11 @@ impl PlaybackResult {
     #[wasm_bindgen(getter)]
     pub fn samples(&self) -> Vec<f32> {
         self.samples.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn syntax(&self) -> Syntax {
+        self.syntax.clone()
     }
 }
 
@@ -75,6 +79,7 @@ pub fn samples(song_text: &str) -> Vec<f32> {
 }
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct Syntax {
     pub line_no: usize,
     pub col_no: usize,

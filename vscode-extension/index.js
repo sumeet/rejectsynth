@@ -58,33 +58,27 @@ function resetSpeaker() {
   });
 }
 
+const decorationType = vscode.window.createTextEditorDecorationType({
+  backgroundColor: 'rgba(220, 220, 220, 0.5)'
+});
+
+function clearDecorations() {
+  let editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  editor.setDecorations(decorationType, []);
+}
+
+function highlight(syntax) {
+  let editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  let start = new vscode.Position(syntax.line_no, syntax.col_no);
+  let end = editor.document.positionAt(editor.document.offsetAt(start) + syntax.len);
+  clearDecorations();
+  editor.setDecorations(decorationType, [new vscode.Range(start, end)]);
+}
+
 
 function activate(context) {
-  ////////////////////////////
-  // EXPERIMENT
-  ////////////////////////////
-  let editor = vscode.window.activeTextEditor;
-  let currentPosition = 0;
-  const decorationType = vscode.window.createTextEditorDecorationType({
-    backgroundColor: 'rgba(220, 220, 220, 0.5)'
-  });
-
-  if (editor) {
-    setInterval(() => {
-      const text = editor.document.getText();
-      const nextSpace = text.indexOf(' ', currentPosition + 1);
-      const start = editor.document.positionAt(currentPosition);
-      const end = editor.document.positionAt(nextSpace);
-
-      editor.setDecorations(decorationType, [new vscode.Range(start, end)]);
-      currentPosition = nextSpace + 1;
-
-    }, 1000);
-  }
-  ////////////////////////////
-  // END OF EXPERIMENT
-  ////////////////////////////
-
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'rejectsynth' },
     new MySemanticTokensProvider(),
@@ -102,23 +96,18 @@ function activate(context) {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
       const position = editor.selection.active;
-      console.log(position);
 
       resetSpeaker();
 
-      let samples = reject.samples(editor.document.getText());
-      const buffer = Buffer.from(samples.buffer);
-      const bufStreamer = new BufStreamer(buffer);
-      // const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
-      // const bufStreamer = new IterStreamer(iter);
+      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
+      const bufStreamer = new IterStreamer(iter);
 
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
-      // Attach an event to stop the song
       disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
       disposableStatusBarItem.show();
-
       speaker.on('close', () => {
+        clearDecorations();
         disposableStatusBarItem.dispose();
       });
 
@@ -150,47 +139,22 @@ class IterStreamer extends Readable {
   constructor(iter) {
     super();
     this.iter = iter;
-    this.buffer = Buffer.from(Float32Array.from([1.0])).slice(0);
+    this.buffer = Buffer.alloc(0);
   }
 
   _read(size) {
+    console.log('node-stream read', size, 'samples');
+
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      let newSamples = playbackResult.samples;
+      highlight(playbackResult.syntax);
       this.buffer = Buffer.concat(
-        [this.buffer, Buffer.from(newSamples)]);
+        [this.buffer, Buffer.from(playbackResult.samples.buffer)]);
     }
     if (this.buffer.length > 0) {
-      let chunk = this.buffer.slice(0, size);
-      console.log(`pushing ${chunk.length} bytes`);
-      console.log('the chunk', chunk);
-      this.push(chunk);
+      this.push(this.buffer.slice(0, size));
       this.buffer = this.buffer.slice(size);
-      if (this.buffer.length === 0) this.push(null);
     } else {
-      console.log('end of stream');
-      this.push(null);
-    }
-  }
-}
-
-class BufStreamer extends Readable {
-  constructor(buffer) {
-    super();
-    this.buffer = buffer;
-    this.position = 0;
-  }
-
-  // bad version: 77 iterations of full size + 3720
-
-  _read(size) {
-    const chunk = this.buffer.slice(this.position, this.position + size);
-    console.log(`pushing ${chunk.length} bytes`)
-    this.push(chunk);
-    this.position += size;
-
-    if (this.position >= this.buffer.length) {
-      console.log('end of stream');
       this.push(null);
     }
   }
