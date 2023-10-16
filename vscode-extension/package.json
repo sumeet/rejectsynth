@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "naudiodon": "file:../../naudiodon",
     "speaker": "^0.5.4"
   },
   "engines": {
