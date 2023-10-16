@@ -47,9 +47,6 @@ class MySemanticTokensProvider {
 }
 
 let speaker;
-let ao;
-const portAudio = require('naudiodon');
-
 
 function resetSpeaker() {
   if (speaker) speaker.close();
@@ -58,16 +55,6 @@ function resetSpeaker() {
     bitDepth: 32,
     sampleRate: 44100,
     float: true,
-  });
-
-  ao = new portAudio.AudioIO({
-    outOptions: {
-      channelCount: 1,
-      sampleFormat: portAudio.SampleFormatFloat32,
-      sampleRate: 44100,
-      deviceId: -1, // Use -1 or omit the deviceId to select the default device
-      closeOnError: true // Close the stream if an audio error is detected, if set false then just log the error
-    }
   });
 }
 
@@ -119,12 +106,12 @@ function activate(context) {
       disposableStatusBarItem.text = `$(stop) Stop`;
       disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
       disposableStatusBarItem.show();
-      ao.on('close', () => {
+      speaker.on('close', () => {
         clearDecorations();
         disposableStatusBarItem.dispose();
       });
 
-      bufStreamer.pipe(ao);
+      bufStreamer.pipe(speaker);
     })
   );
 }
@@ -160,7 +147,7 @@ class IterStreamer extends Readable {
 
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      setTimeout(() => highlight(playbackResult.syntax), 200);
+      highlight(playbackResult.syntax);
       this.buffer = Buffer.concat(
         [this.buffer, Buffer.from(playbackResult.samples.buffer)]);
     }
