@@ -99,7 +99,7 @@ function activate(context) {
             new vscode.CodeLens(
               new vscode.Range(0, 0, doc.lineCount, 0),
               {
-                title: "Play Song",
+                title: "⏵️Play",
                 command: "rejectsynth.playFromHere",
                 arguments: [],
               }
@@ -112,6 +112,8 @@ function activate(context) {
 
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'rejectsynth' },
+
+
     new MySemanticTokensProvider(),
     new vscode.SemanticTokensLegend(TOKEN_TYPES),
   ));
@@ -188,3 +190,18 @@ class IterStreamer extends Readable {
     }
   }
 }
+
+
+// instructions
+// [SetHarmony, PlayNote, PlayNote, PlayNote
+//  SetHarmony, PlayNote, PlayNote, PlayNote
+//  ...]
+
+// cl = instruction.code_location
+// samples = songcontext.eval(&instruction)
+// highlight(cl)
+// playAudio(samples, in: 500ms)
+
+
+// songcontext.instructions
+// songcontext.pc # index into instructions
