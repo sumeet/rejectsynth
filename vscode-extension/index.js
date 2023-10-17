@@ -1,5 +1,7 @@
-const vscode = require('vscode');
 const Speaker = require('speaker');
+// const portAudio = require('naudiodon');
+
+const vscode = require('vscode');
 
 const reject = require('../build/wasm/rejectsynth.js');
 
@@ -46,14 +48,28 @@ class MySemanticTokensProvider {
   }
 }
 
+const SAMPLE_RATE = 44100;
+
 let speaker;
+// Create an instance of AudioIO with outOptions (defaults are as below), which will return a WritableStream
+// var ao = new portAudio.AudioIO({
+//   outOptions: {
+//     channelCount: 1,
+//     sampleFormat: portAudio.SampleFormatFloat32,
+//     sampleRate: SAMPLE_RATE,
+//     deviceId: -1, // Use -1 or omit the deviceId to select the default device
+//     closeOnError: false // Close the stream if an audio error is detected, if set false then just log the error
+//   }
+// });
+
+
 
 function resetSpeaker() {
   if (speaker) speaker.close();
   speaker = new Speaker({
     channels: 1,
     bitDepth: 32,
-    sampleRate: 44100,
+    sampleRate: SAMPLE_RATE,
     float: true,
   });
 }
@@ -112,6 +128,7 @@ function activate(context) {
       });
 
       bufStreamer.pipe(speaker);
+      // bufStreamer.pipe(ao);
     })
   );
 }
@@ -143,8 +160,6 @@ class IterStreamer extends Readable {
   }
 
   _read(size) {
-    console.log('node-stream read', size, 'samples');
-
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
       highlight(playbackResult.syntax);

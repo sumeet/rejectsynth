@@ -8,9 +8,6 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "speaker": "^0.5.4"
-  },
   "engines": {
     "vscode": "^1.83.0"
   },
@@ -55,5 +52,12 @@
         ]
       }
     ]
+  },
+  "dependencies": {
+    "naudiodon": "^2.3.6",
+    "speaker": "^0.5.4"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.3.0"
   }
 }
