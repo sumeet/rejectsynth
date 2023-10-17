@@ -89,6 +89,27 @@ function highlight(syntax) {
 
 
 function activate(context) {
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      { language: 'rejectsynth' },
+      {
+        provideCodeLenses: (doc) => {
+          // "Play" code lens from beginning to end of doc
+          return [
+            new vscode.CodeLens(
+              new vscode.Range(0, 0, doc.lineCount, 0),
+              {
+                title: "Play Song",
+                command: "rejectsynth.playFromHere",
+                arguments: [],
+              }
+            )
+          ];
+        }
+      },
+    )
+  );
+
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'rejectsynth' },
     new MySemanticTokensProvider(),
