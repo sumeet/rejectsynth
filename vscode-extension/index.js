@@ -58,22 +58,32 @@ function resetSpeaker() {
   });
 }
 
-const decorationType = vscode.window.createTextEditorDecorationType({
-  backgroundColor: 'rgba(220, 220, 220, 0.5)'
-});
+let decorationType;
 
 function clearDecorations() {
   let editor = vscode.window.activeTextEditor;
   if (!editor) return;
+  while (highlightTimeouts.length > 0) {
+    clearTimeout(highlightTimeouts.pop());
+  }
   editor.setDecorations(decorationType, []);
+  decorationType.dispose();
+  decorationType = undefined;
 }
+
+const highlightTimeouts = [];
 
 function highlight(syntax) {
   let editor = vscode.window.activeTextEditor;
   if (!editor) return;
+  if (!decorationType) {
+    decorationType = vscode.window.createTextEditorDecorationType({
+      backgroundColor: 'rgba(220, 220, 220, 0.5)'
+    });
+  }
+
   let start = new vscode.Position(syntax.line_no, syntax.col_no);
   let end = editor.document.positionAt(editor.document.offsetAt(start) + syntax.len);
-  clearDecorations();
   editor.setDecorations(decorationType, [new vscode.Range(start, end)]);
 }
 
@@ -143,11 +153,9 @@ class IterStreamer extends Readable {
   }
 
   _read(size) {
-    console.log('node-stream read', size, 'samples');
-
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      highlight(playbackResult.syntax);
+      highlightTimeouts.push(setTimeout(() => highlight(playbackResult.syntax), 500));
       this.buffer = Buffer.concat(
         [this.buffer, Buffer.from(playbackResult.samples.buffer)]);
     }
