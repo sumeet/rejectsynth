@@ -33,12 +33,12 @@ III: ~5 ~-5 , ~-6, ~-7 , i: ~2 ~1 , 1_ iv: , _~1 ~1
     dbg!(&song);
 
     let pulse = init_pulse();
-    let mut ctx = lib::SongContext::default();
     let mut buffer = [0f32; BUFFER_SIZE];
     let song = song
         .into_iter()
         .map(|spanned| spanned.instruction)
         .collect::<Vec<_>>();
+    let mut ctx = lib::SongContext::default(song.clone());
     for chunk in ctx.play(&song).array_chunks::<BUFFER_SIZE_HALF>() {
         for (i, &note) in chunk.iter().enumerate() {
             buffer[i * 2] = note;

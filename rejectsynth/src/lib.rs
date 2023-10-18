@@ -1,5 +1,7 @@
 mod parser;
 
+use std::collections::HashSet;
+
 use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
 use r#macro::m;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -14,7 +16,6 @@ pub struct WasmSongIterator {
     ctx: SongContext,
     song: Vec<SpannedInstruction>,
     syntaxes: Vec<Syntax>,
-    i: usize,
 }
 
 #[wasm_bindgen]
@@ -22,11 +23,15 @@ impl WasmSongIterator {
     #[wasm_bindgen]
     pub fn from_song_text(song_text: &str) -> Self {
         let parse_result = parse(song_text);
+        let instructions = parse_result
+            .spanned_instructions
+            .iter()
+            .map(|spanned_instruction| spanned_instruction.instruction)
+            .collect();
         Self {
-            ctx: SongContext::default(),
+            ctx: SongContext::default(instructions),
             song: parse_result.spanned_instructions,
             syntaxes: parse_result.syntaxes,
-            i: 0,
         }
     }
 
@@ -37,20 +42,27 @@ impl WasmSongIterator {
 
     #[wasm_bindgen]
     pub fn play_next(&mut self) -> PlaybackResult {
-        let samples = match self.ctx.eval(&self.song[self.i].instruction) {
+        let samples = match self.ctx.eval(self.song[self.i].instruction) {
             Some(iter) => iter.collect(),
             None => vec![],
         };
         let syntax = self.syntaxes[self.i].clone();
         self.i += 1;
-        PlaybackResult { samples, syntax }
+        PlaybackResult {
+            samples,
+            syntax,
+            on_syntaxes: vec![],
+        }
     }
 }
 
 #[wasm_bindgen]
 pub struct PlaybackResult {
     samples: Vec<f32>,
+    // we're gonna get rid of this, and just tell the editor which
+    // syntaxes to highlight right now, PERIOD
     syntax: Syntax,
+    on_syntaxes: Vec<Syntax>,
 }
 
 #[wasm_bindgen]
@@ -69,12 +81,12 @@ impl PlaybackResult {
 // this is historical for playing audio
 #[wasm_bindgen]
 pub fn samples(song_text: &str) -> Vec<f32> {
-    let mut ctx = SongContext::default();
     let song = grammar::song(song_text)
         .unwrap()
         .iter()
         .map(|s| s.instruction)
         .collect::<Vec<_>>();
+    let mut ctx = SongContext::default(song.clone());
     ctx.play(&song).collect()
 }
 
@@ -334,11 +346,54 @@ pub struct SongContext {
     scale: Scale,
     phase: f32,
     harmony: Option<Harmony>,
+
+    pc: usize,
+    instructions: Vec<Instruction>,
+    on_harmony: Option<usize>,
+    off_on_next_tick: Option<usize>,
+    on_instructions: HashSet<usize>,
 }
 
 impl SongContext {
-    pub fn default() -> Self {
+    pub fn is_done(&self) -> bool {
+        self.pc >= self.instructions.len()
+    }
+
+    pub fn iterate(&mut self) -> Vec<f32> {
+        if self.is_done() {
+            panic!("iteration called on done song context")
+        }
+
+        if let Some(i) = self.off_on_next_tick {
+            self.on_instructions.remove(&i);
+        }
+
+        let cur_instruction = self.instructions[self.pc];
+        let samples = self.eval(cur_instruction).into_iter().flatten().collect();
+        match cur_instruction {
+            Instruction::SetBPM(_)
+            | Instruction::SetKey(_)
+            | Instruction::SetScale(_)
+            | Instruction::PlayNote(_)
+            | Instruction::SkipToNote => {
+                self.off_on_next_tick = Some(self.pc);
+                self.on_instructions.insert(self.pc);
+            }
+            Instruction::SetHarmony(_) => {
+                if let Some(prev_harmony) = self.on_harmony {
+                    self.on_instructions.remove(&prev_harmony);
+                }
+                self.on_instructions.insert(self.pc);
+                self.on_harmony = Some(self.pc);
+            }
+        };
+        self.pc += 1;
+        samples
+    }
+
+    pub fn default(instructions: Vec<Instruction>) -> Self {
         Self::new(
+            instructions,
             120,
             Key {
                 abc: ABC::C,
@@ -348,39 +403,38 @@ impl SongContext {
         )
     }
 
-    fn new(bpm: u16, key: Key, scale: Scale) -> Self {
+    fn new(instructions: Vec<Instruction>, bpm: u16, key: Key, scale: Scale) -> Self {
         Self {
             bpm,
             key,
             scale,
             phase: 0.,
             harmony: None,
+            pc: 0,
+            instructions,
+            on_harmony: None,
+            off_on_next_tick: None,
+            on_instructions: HashSet::new(),
         }
     }
 
     fn chord_freqs(&self) -> Vec<f32> {
         let mut freqs = vec![];
         if let Some(harmony) = self.harmony {
-            // self.key
-            // self.scale
-            // harmony.degree
-            // harmony.scale
             let num_semitones_to_chord_base = scale_degree_to_semitones(self.scale, harmony.degree);
             let freq_of_base_of_chord =
                 shift_up_by_interval(self.freq_of_tonic(), num_semitones_to_chord_base);
-            // 1
             freqs.push(freq_of_base_of_chord);
-            // 3
+
             let semitones_to_3 = scale_degree_to_semitones(harmony.scale, 3);
             let freq_of_3 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_3);
             freqs.push(freq_of_3);
-            // 5
+
             let semitones_to_5 = scale_degree_to_semitones(harmony.scale, 5);
             let freq_of_5 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_5);
             freqs.push(freq_of_5);
 
             if harmony.add_7 {
-                // 7
                 let semitones_to_7 = scale_degree_to_semitones(harmony.scale, 7);
                 let freq_of_7 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_7);
                 freqs.push(freq_of_7);
@@ -446,22 +500,22 @@ impl SongContext {
         instrs
             .iter()
             .enumerate()
-            .flat_map(move |(_i, inst)| self.eval(inst))
+            .flat_map(move |(_i, &inst)| self.eval(inst))
             .flatten()
     }
 
-    fn eval(&mut self, inst: &Instruction) -> Option<impl Iterator<Item = f32>> {
+    fn eval(&mut self, inst: Instruction) -> Option<impl Iterator<Item = f32>> {
         match inst {
             Instruction::SetBPM(bpm) => {
-                self.bpm = *bpm;
+                self.bpm = bpm;
                 None
             }
             Instruction::SetKey(key) => {
-                self.key = *key;
+                self.key = key;
                 None
             }
             Instruction::SetScale(scale) => {
-                self.scale = *scale;
+                self.scale = scale;
                 None
             }
             Instruction::PlayNote(note) => {
@@ -470,11 +524,11 @@ impl SongContext {
                 //         return None;
                 //     }
                 // }
-                Some(self.render_note(*note))
+                Some(self.render_note(note))
             }
             Instruction::SkipToNote => None,
             Instruction::SetHarmony(harmony) => {
-                self.harmony = Some(*harmony);
+                self.harmony = Some(harmony);
                 None
             }
         }
