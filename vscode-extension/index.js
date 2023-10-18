@@ -66,15 +66,17 @@ function clearDecorations() {
   while (highlightTimeouts.length > 0) {
     clearTimeout(highlightTimeouts.pop());
   }
-  editor.setDecorations(decorationType, []);
-  decorationType.dispose();
-  decorationType = undefined;
+  if (decorationType) {
+    editor.setDecorations(decorationType, []);
+    decorationType.dispose();
+    decorationType = undefined;
+  }
 }
 
 const highlightTimeouts = [];
 
-function highlight(syntax) {
-  let editor = vscode.window.activeTextEditor;
+function highlight(syntaxes) {
+  const editor = vscode.window.activeTextEditor;
   if (!editor) return;
   if (!decorationType) {
     decorationType = vscode.window.createTextEditorDecorationType({
@@ -82,9 +84,13 @@ function highlight(syntax) {
     });
   }
 
-  let start = new vscode.Position(syntax.line_no, syntax.col_no);
-  let end = editor.document.positionAt(editor.document.offsetAt(start) + syntax.len);
-  editor.setDecorations(decorationType, [new vscode.Range(start, end)]);
+  const ranges = [];
+  for (const syntax of syntaxes) {
+    const start = new vscode.Position(syntax.line_no, syntax.col_no);
+    const end = editor.document.positionAt(editor.document.offsetAt(start) + syntax.len);
+    ranges.push(new vscode.Range(start, end));
+  }
+  editor.setDecorations(decorationType, ranges);
 }
 
 
@@ -156,16 +162,6 @@ module.exports = {
   deactivate
 };
 
-//////////////////////////////////////////////////
-// cursor moving stuff, which we'll go later
-//////////////////////////////////////////////////
-
-
-//////////////////////////////////////////////////
-// song playing stuff, which we'll do later
-//////////////////////////////////////////////////
-
-
 const { Readable } = require('stream');
 
 class IterStreamer extends Readable {
@@ -178,7 +174,7 @@ class IterStreamer extends Readable {
   _read(size) {
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      highlightTimeouts.push(setTimeout(() => highlight(playbackResult.syntax), 500));
+      highlightTimeouts.push(setTimeout(() => highlight(playbackResult.on_syntaxes), 500));
       this.buffer = Buffer.concat(
         [this.buffer, Buffer.from(playbackResult.samples.buffer)]);
     }
@@ -190,18 +186,3 @@ class IterStreamer extends Readable {
     }
   }
 }
-
-
-// instructions
-// [SetHarmony, PlayNote, PlayNote, PlayNote
-//  SetHarmony, PlayNote, PlayNote, PlayNote
-//  ...]
-
-// cl = instruction.code_location
-// samples = songcontext.eval(&instruction)
-// highlight(cl)
-// playAudio(samples, in: 500ms)
-
-
-// songcontext.instructions
-// songcontext.pc # index into instructions

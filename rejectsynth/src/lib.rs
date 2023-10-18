@@ -37,21 +37,21 @@ impl WasmSongIterator {
 
     #[wasm_bindgen]
     pub fn is_done(&self) -> bool {
-        self.i >= self.song.len()
+        self.ctx.is_done()
     }
 
     #[wasm_bindgen]
     pub fn play_next(&mut self) -> PlaybackResult {
-        let samples = match self.ctx.eval(self.song[self.i].instruction) {
-            Some(iter) => iter.collect(),
-            None => vec![],
-        };
-        let syntax = self.syntaxes[self.i].clone();
-        self.i += 1;
+        let samples = self.ctx.iterate();
+        let on_syntaxes = self
+            .ctx
+            .on_instructions
+            .iter()
+            .map(|&i| self.syntaxes[i].clone())
+            .collect();
         PlaybackResult {
             samples,
-            syntax,
-            on_syntaxes: vec![],
+            on_syntaxes,
         }
     }
 }
@@ -59,9 +59,6 @@ impl WasmSongIterator {
 #[wasm_bindgen]
 pub struct PlaybackResult {
     samples: Vec<f32>,
-    // we're gonna get rid of this, and just tell the editor which
-    // syntaxes to highlight right now, PERIOD
-    syntax: Syntax,
     on_syntaxes: Vec<Syntax>,
 }
 
@@ -73,8 +70,8 @@ impl PlaybackResult {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn syntax(&self) -> Syntax {
-        self.syntax.clone()
+    pub fn on_syntaxes(&self) -> Vec<Syntax> {
+        self.on_syntaxes.clone()
     }
 }
 
