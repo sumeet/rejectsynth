@@ -115,9 +115,13 @@ peg::parser! {
             = harmony:harmony() ":" { dsl::Instruction::SetHarmony(harmony) }
 
         rule harmony() -> dsl::Harmony
-            = chord_base:chord_base() add_7:add_7() {
-                dsl::Harmony {degree: chord_base.0, scale: chord_base.1, add_7}
+            = downshift:downshift() chord_base:chord_base() add_7:add_7() {
+                let shift = (downshift as i8 * -1);
+                dsl::Harmony {degree: chord_base.0, scale: chord_base.1, add_7, shift}
             }
+
+        rule downshift() -> usize
+            = lts:"<"* { lts.len() }
 
         rule chord_base() -> (u8, dsl::Scale)
             = "iii" { (3, dsl::Scale::Minor) }

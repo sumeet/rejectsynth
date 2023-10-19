@@ -72,6 +72,7 @@ pub struct Harmony {
     pub scale: Scale,
     pub degree: u8,
     pub add_7: bool,
+    pub shift: i8,
 }
 
 impl Harmony {
@@ -100,6 +101,7 @@ impl Harmony {
             scale,
             degree,
             add_7,
+            shift: 0,
         }
     }
 }

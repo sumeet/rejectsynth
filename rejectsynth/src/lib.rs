@@ -274,6 +274,12 @@ fn freqs_to_samples<'a>(
 
         for (p, &incr) in phases.iter_mut().zip(&phase_increments) {
             chord_sample += p.sin();
+
+            // // First harmonic
+            // chord_sample += 0.5 * (2.0 * *p).sin();
+            // // Second harmonic
+            // chord_sample += 0.25 * (3.0 * *p).sin();
+
             *p += incr;
             if *p >= 2.0 * std::f32::consts::PI {
                 *p -= 2.0 * std::f32::consts::PI;
@@ -417,7 +423,7 @@ impl SongContext {
 
     fn chord_freqs(&self) -> Vec<f32> {
         let mut freqs = vec![];
-        if let Some(harmony) = self.harmony {
+        if let Some(mut harmony) = self.harmony {
             let num_semitones_to_chord_base = scale_degree_to_semitones(self.scale, harmony.degree);
             let freq_of_base_of_chord =
                 shift_up_by_interval(self.freq_of_tonic(), num_semitones_to_chord_base);
@@ -436,7 +442,18 @@ impl SongContext {
                 let freq_of_7 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_7);
                 freqs.push(freq_of_7);
             }
+
+            while harmony.shift < 0 {
+                let last = freqs.pop().unwrap();
+                freqs.insert(0, last / 2.);
+                harmony.shift += 1;
+            }
+
+            console_log!("harmony: {harmony:?}");
+            let abcs = freqs.iter().cloned().map(freq_to_abc).collect::<Vec<_>>();
+            console_log!("    abcs: {abcs:?}");
         }
+
         freqs
     }
 
@@ -530,4 +547,26 @@ impl SongContext {
             }
         }
     }
+}
+
+fn freq_to_abc(freq: f32) -> String {
+    let a = 440.0;
+    let n = (12.0 * (freq / a).log2()).round() as i32;
+    let abc = match n % 12 {
+        0 => "A",
+        1 => "A# / Bb",
+        2 => "B",
+        3 => "C",
+        4 => "C# / Db",
+        5 => "D",
+        6 => "D# / Eb",
+        7 => "E",
+        8 => "F",
+        9 => "F# / Gb",
+        10 => "G",
+        11 => "G# / Ab",
+        _ => panic!("impossible"),
+    };
+    let octave = n / 12 - 1;
+    format!("{}{}", abc, octave)
 }
