@@ -3,6 +3,63 @@ const Speaker = require('speaker');
 
 const reject = require('../build/wasm/rejectsynth.js');
 
+class AsyncLock {
+  static INDEX = 0;
+  static UNLOCKED = 0;
+  static LOCKED = 1;
+
+  constructor(sab) {
+    this.sab = sab;
+    this.i32a = new Int32Array(sab);
+  }
+
+  lock() {
+    while (true) {
+      const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
+                        /* old value >>> */  AsyncLock.UNLOCKED,
+                        /* new value >>> */  AsyncLock.LOCKED);
+      if (oldValue == AsyncLock.UNLOCKED) {
+        return;
+      }
+      Atomics.wait(this.i32a, AsyncLock.INDEX,
+        AsyncLock.LOCKED); // <<< expected value at start
+    }
+  }
+
+  unlock() {
+    const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
+                            /* old value >>> */  AsyncLock.LOCKED,
+                            /* new value >>> */  AsyncLock.UNLOCKED);
+    if (oldValue != AsyncLock.LOCKED) {
+      throw new Error('Tried to unlock while not holding the mutex');
+    }
+    Atomics.notify(this.i32a, AsyncLock.INDEX, 1);
+  }
+
+  executeLocked(f) {
+    const self = this;
+
+    async function tryGetLock() {
+      while (true) {
+        const oldValue = Atomics.compareExchange(self.i32a, AsyncLock.INDEX,
+                                    /* old value >>> */  AsyncLock.UNLOCKED,
+                                    /* new value >>> */  AsyncLock.LOCKED);
+        if (oldValue == AsyncLock.UNLOCKED) {
+          f();
+          self.unlock();
+          return;
+        }
+        const result = Atomics.waitAsync(self.i32a, AsyncLock.INDEX,
+          AsyncLock.LOCKED);
+        //  ^ expected value at start
+        await result.value;
+      }
+    }
+
+    tryGetLock();
+  }
+}
+
 // https://www.sublimetext.com/docs/scope_naming.html#keyword
 const TOKEN_TYPES = [
   'keyword',
@@ -93,8 +150,28 @@ function highlight(syntaxes) {
   editor.setDecorations(decorationType, ranges);
 }
 
-
 function activate(context) {
+  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
+    const changes = e.contentChanges;
+    if (changes.length === 0) return;
+    if (changes.length > 1) throw new Error("thought changes.length is always 1 or 0, time to update our assumptions");
+    const [change] = changes;
+    if (/^\s*$/g.test(change.text)) {
+      return;
+    }
+
+    let l = e.document.offsetAt(change.range.start);
+    let r = e.document.offsetAt(change.range.end);
+    if (l !== r) throw new Error("expected range to just be a single character, update our assumptions");
+    let samples = reject.playback_for_note_input(e.document.getText(), l);
+    if (samples.length > 0) {
+      sendDataToWorker(samples);
+      // let bufStreamer = new BufStreamer(Buffer.from(samples.buffer));
+      // resetSpeaker();
+      // bufStreamer.pipe(speaker);
+    }
+  }));
+
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
       { language: 'rejectsynth' },
@@ -186,3 +263,72 @@ class IterStreamer extends Readable {
     }
   }
 }
+
+class BufStreamer extends Readable {
+  constructor(buffer) {
+    super();
+    this.buffer = buffer;
+    this.position = 0;
+  }
+
+  _read(size) {
+    const chunk = this.buffer.slice(this.position, this.position + size);
+    this.push(chunk);
+    this.position += size;
+
+    if (this.position >= this.buffer.length) {
+      this.push(null);
+    }
+  }
+}
+
+const { Worker } = require('worker_threads');
+const BUFFER_SAMPLE_CAP = 44100;
+
+const sb2 = new SharedArrayBuffer(4);
+const intlock = new Int32Array(sb2);
+
+const sharedBuffer = new SharedArrayBuffer(4 + 4 + BUFFER_SAMPLE_CAP * 4);
+const lock = new Int32Array(sharedBuffer, 0, 1);
+const length = new Int32Array(sharedBuffer, 4, 1);
+const sharedAudioData = new Float32Array(sharedBuffer, 8);
+
+const loq = new AsyncLock(sharedBuffer);
+
+// this should return right away because nobody is holding the lock yet
+loq.lock();
+
+const worker = new Worker('./audioworker.js', {
+  workerData: { sharedBuffer, sb2 }
+});
+
+let firstTime = true;
+async function sendDataToWorker(audioData) {
+  return;
+
+  // console.log('parent: waiting for worker to finish...');
+  // Atomics.wait(lock, 0, 1);
+  // let value = await Atomics.waitAsync(lock, 0, 1);
+  // await value.value;
+
+  // console.log('parent: setting shared buffer...');
+  if (firstTime) {
+    console.log('parent: first time send, about to set shared buffer and unlock');
+    length[0] = audioData.length;
+    sharedAudioData.set(audioData, 0);
+    loq.unlock();
+    firstTime = false;
+    console.log('parent: done unlocking');
+  } else {
+    loq.executeLocked(() => {
+      length[0] = audioData.length;
+      sharedAudioData.set(audioData, 0);
+    });
+  }
+
+
+  // console.log('parent: unlocking worker with lock');
+  // Atomics.store(lock, 0, 1);
+  // console.log('parent: lock value after unlock', lock[0]);
+  // Atomics.notify(lock, 0);
+};

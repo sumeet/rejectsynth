@@ -22,7 +22,7 @@ pub struct WasmSongIterator {
 impl WasmSongIterator {
     #[wasm_bindgen]
     pub fn from_song_text(song_text: &str) -> Self {
-        let parse_result = parse(song_text);
+        let parse_result = parse(song_text).unwrap();
         let instructions = parse_result
             .spanned_instructions
             .iter()
@@ -73,18 +73,6 @@ impl PlaybackResult {
     pub fn on_syntaxes(&self) -> Vec<Syntax> {
         self.on_syntaxes.clone()
     }
-}
-
-// this is historical for playing audio
-#[wasm_bindgen]
-pub fn samples(song_text: &str) -> Vec<f32> {
-    let song = grammar::song(song_text)
-        .unwrap()
-        .iter()
-        .map(|s| s.instruction)
-        .collect::<Vec<_>>();
-    let mut ctx = SongContext::default(song.clone());
-    ctx.play(&song).collect()
 }
 
 #[wasm_bindgen]
@@ -145,9 +133,9 @@ struct ParseResult {
     syntaxes: Vec<Syntax>,
 }
 
-fn parse(s: &str) -> ParseResult {
+fn parse(s: &str) -> Result<ParseResult, Box<dyn std::error::Error>> {
     let positions_of_line_breaks = s.match_indices('\n').map(|(i, _)| i).collect::<Vec<_>>();
-    let spanned_instructions = grammar::song(s).unwrap();
+    let spanned_instructions = grammar::song(s)?;
 
     let syntaxes = spanned_instructions
         .iter()
@@ -181,15 +169,52 @@ fn parse(s: &str) -> ParseResult {
             }
         })
         .collect();
-    ParseResult {
+    Ok(ParseResult {
         spanned_instructions,
         syntaxes,
-    }
+    })
 }
 
 #[wasm_bindgen]
 pub fn syntax(s: &str) -> Vec<Syntax> {
-    parse(s).syntaxes
+    parse(s).unwrap().syntaxes
+}
+
+#[wasm_bindgen]
+// pos is the position in the song_file to skip to...
+pub fn playback_for_note_input(song_file: &str, pos: usize) -> Vec<f32> {
+    let parse_result = parse(song_file);
+    if parse_result.is_err() {
+        return vec![];
+    }
+    let parse_result = parse_result.unwrap();
+    let instructions = parse_result
+        .spanned_instructions
+        .iter()
+        .map(|spanned_instruction| spanned_instruction.instruction)
+        .collect();
+    let mut ctx = SongContext::default(instructions);
+    while !ctx.is_done() {
+        let cur_instruction = ctx.current_instruction();
+        match cur_instruction {
+            Instruction::PlayNote { .. } => {
+                let spanned_instruction = &parse_result.spanned_instructions[ctx.pc];
+                if pos >= spanned_instruction.l && pos <= spanned_instruction.r {
+                    return ctx.iterate();
+                } else {
+                    ctx.skip();
+                }
+            }
+            Instruction::SetBPM(_)
+            | Instruction::SetKey(_)
+            | Instruction::SetScale(_)
+            | Instruction::SkipToNote
+            | Instruction::SetHarmony(_) => {
+                ctx.iterate();
+            }
+        }
+    }
+    vec![]
 }
 
 pub mod songs {
@@ -358,8 +383,16 @@ pub struct SongContext {
 }
 
 impl SongContext {
+    pub fn current_instruction(&self) -> &Instruction {
+        &self.instructions[self.pc]
+    }
+
     pub fn is_done(&self) -> bool {
         self.pc >= self.instructions.len()
+    }
+
+    pub fn skip(&mut self) {
+        self.pc += 1;
     }
 
     pub fn iterate(&mut self) -> Vec<f32> {
@@ -448,10 +481,6 @@ impl SongContext {
                 freqs.insert(0, last / 2.);
                 harmony.shift += 1;
             }
-
-            console_log!("harmony: {harmony:?}");
-            let abcs = freqs.iter().cloned().map(freq_to_abc).collect::<Vec<_>>();
-            console_log!("    abcs: {abcs:?}");
         }
 
         freqs
@@ -498,19 +527,6 @@ impl SongContext {
     }
 
     pub fn play<'a>(&'a mut self, instrs: &'a [Instruction]) -> impl Iterator<Item = f32> + 'a {
-        // let mut skip_to_note_index = None;
-        // 'outer: for i in 0..instrs.len() {
-        //     if matches!(instrs[i], Instruction::SkipToNote) {
-        //         for j in (i + 1)..instrs.len() {
-        //             if matches!(instrs[j], Instruction::PlayNote { .. }) {
-        //                 skip_to_note_index = Some(j);
-        //                 break 'outer;
-        //             }
-        //         }
-        //         panic!("skip to note must be followed by a note")
-        //     }
-        // }
-
         instrs
             .iter()
             .enumerate()
