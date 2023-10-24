@@ -302,33 +302,19 @@ const worker = new Worker('./audioworker.js', {
   workerData: { sharedBuffer, sb2 }
 });
 
-let firstTime = true;
 async function sendDataToWorker(audioData) {
-  return;
-
-  // console.log('parent: waiting for worker to finish...');
-  // Atomics.wait(lock, 0, 1);
-  // let value = await Atomics.waitAsync(lock, 0, 1);
-  // await value.value;
-
-  // console.log('parent: setting shared buffer...');
-  if (firstTime) {
-    console.log('parent: first time send, about to set shared buffer and unlock');
-    length[0] = audioData.length;
-    sharedAudioData.set(audioData, 0);
-    loq.unlock();
-    firstTime = false;
-    console.log('parent: done unlocking');
-  } else {
-    loq.executeLocked(() => {
-      length[0] = audioData.length;
-      sharedAudioData.set(audioData, 0);
-    });
+  if (intlock[0] !== 0) {
+    let result = await Atomics.waitAsync(intlock, 0, 0);
+    console.log('parent: waiting2 for lock from child', result);
+    if (result.value instanceof Promise) await result.value;
+    console.log('parent: done waiting for lock from child');
   }
 
+  console.log('parent: setting shared buffer');
+  length[0] = audioData.length;
+  sharedAudioData.set(audioData, 0);
 
-  // console.log('parent: unlocking worker with lock');
-  // Atomics.store(lock, 0, 1);
-  // console.log('parent: lock value after unlock', lock[0]);
-  // Atomics.notify(lock, 0);
+  console.log('parent: waking up child');
+  Atomics.store(intlock, 0, 1);
+  Atomics.notify(intlock, 0);
 };

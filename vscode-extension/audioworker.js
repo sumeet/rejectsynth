@@ -1,65 +1,13 @@
-class AsyncLock {
-    static INDEX = 0;
-    static UNLOCKED = 0;
-    static LOCKED = 1;
-
-    constructor(sab) {
-        this.sab = sab;
-        this.i32a = new Int32Array(sab);
-    }
-
-    lock() {
-        while (true) {
-            const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
-                        /* old value >>> */  AsyncLock.UNLOCKED,
-                        /* new value >>> */  AsyncLock.LOCKED);
-            if (oldValue == AsyncLock.UNLOCKED) {
-                return;
-            }
-            Atomics.wait(this.i32a, AsyncLock.INDEX,
-                AsyncLock.LOCKED); // <<< expected value at start
-        }
-    }
-
-    unlock() {
-        const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
-                            /* old value >>> */  AsyncLock.LOCKED,
-                            /* new value >>> */  AsyncLock.UNLOCKED);
-        if (oldValue != AsyncLock.LOCKED) {
-            throw new Error('Tried to unlock while not holding the mutex');
-        }
-        Atomics.notify(this.i32a, AsyncLock.INDEX, 1);
-    }
-
-    executeLocked(f) {
-        const self = this;
-
-        async function tryGetLock() {
-            while (true) {
-                const oldValue = Atomics.compareExchange(self.i32a, AsyncLock.INDEX,
-                                    /* old value >>> */  AsyncLock.UNLOCKED,
-                                    /* new value >>> */  AsyncLock.LOCKED);
-                if (oldValue == AsyncLock.UNLOCKED) {
-                    f();
-                    self.unlock();
-                    return;
-                }
-                const result = Atomics.waitAsync(self.i32a, AsyncLock.INDEX,
-                    AsyncLock.LOCKED);
-                //  ^ expected value at start
-                await result.value;
-            }
-        }
-
-        tryGetLock();
-    }
-}
-
-const { workerData } = require('worker_threads');
-const { sharedBuffer } = workerData;
-const loq = new AsyncLock(sharedBuffer);
+const { workerData, parentPort } = require('worker_threads');
+const { sharedBuffer, sb2 } = workerData;
+const intlock = new Int32Array(sb2);
+// const loq = new AsyncLock(sharedBuffer);
 const Speaker = require('speaker');
 const { Readable } = require('stream');
+
+// needed to keep this thread alive used in combination with waitAsync
+// see: https://github.com/nodejs/node/issues/44729
+parentPort.ref();
 
 const lock = new Int32Array(sharedBuffer, 0, 1);
 const length = new Int32Array(sharedBuffer, 4, 1);
@@ -100,27 +48,57 @@ class BufStreamer extends Readable {
 //    and send the data to node-speaker. and then
 //    will set the lock to 0, and wait again
 
-(async () => {
-    while (true) {
-        console.log('child: waiting for sender to fix the lock');
-        // let value = await Atomics.waitAsync(lock, 0, 0);
-        console.log(`child: current lock value: ${lock[0]}`);
-        // Atomics.wait(lock, 0, 0);
-        console.log('child: value1', value);
-        // value = await value.value;
-        console.log('child: value2', value);
-        console.log('child: done for sender lock');
+// (async () => {
+//     while (true) {
+//         console.log('child: waiting for sender to fix the lock');
+//         // let value = await Atomics.waitAsync(lock, 0, 0);
+//         console.log(`child: current lock value: ${lock[0]}`);
+//         // Atomics.wait(lock, 0, 0);
+//         console.log('child: value1', value);
+//         // value = await value.value;
+//         console.log('child: value2', value);
+//         console.log('child: done for sender lock');
 
-        console.log('child: preparing data for pipe');
+//         console.log('child: preparing data for pipe');
+//         const len = length[0];
+//         const audioData = Buffer.from(sharedBuffer, 8, len * 4);
+//         const stream = new BufStreamer(audioData);
+//         stream.pipe(speaker);
+//         console.log('child: piped');
+
+//         console.log('child: unlocking lock for sender');
+//         // Atomics.store(lock, 0, 0);
+//         // Atomics.notify(lock, 0);
+//     }
+// })();
+
+async function pipeAsync(stream, speaker) {
+    return new Promise((resolve, reject) => {
+        stream.pipe(speaker)
+            .on('finish', resolve)
+            .on('error', reject);
+    });
+}
+
+(async function () {
+    while (true) {
+        console.log('child: waiting for parent to release lock...');
+        let value = Atomics.waitAsync(intlock, 0, 0); // wait until lock value becomes non-zero
+        if (value.value instanceof Promise) await value.value;
+        console.log('child: done waiting for parent to release lock...');
+
+        // Do the work here
+        console.log('child: streaming the audio');
         const len = length[0];
         const audioData = Buffer.from(sharedBuffer, 8, len * 4);
         const stream = new BufStreamer(audioData);
-        stream.pipe(speaker);
-        console.log('child: piped');
 
-        console.log('child: unlocking lock for sender');
-        // Atomics.store(lock, 0, 0);
-        // Atomics.notify(lock, 0);
+        await pipeAsync(stream, speaker);
+        // stream.pipe(speaker);
+
+        console.log('child: done streaming the audio and unlocking parent');
+
+        Atomics.store(intlock, 0, 0); // reset lock to zero
+        Atomics.notify(intlock, 0);
     }
 })();
-
