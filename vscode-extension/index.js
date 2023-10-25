@@ -58,6 +58,8 @@ function resetSpeaker() {
   });
 }
 
+resetSpeaker();
+
 let decorationType;
 
 function clearDecorations() {
@@ -108,10 +110,9 @@ function activate(context) {
     if (l !== r) throw new Error("expected range to just be a single character, update our assumptions");
     let samples = reject.playback_for_note_input(e.document.getText(), l);
     if (samples.length > 0) {
-      sendDataToWorker(samples);
-      // let bufStreamer = new BufStreamer(Buffer.from(samples.buffer));
-      // resetSpeaker();
-      // bufStreamer.pipe(speaker);
+      let buf = Buffer.from(samples.buffer);
+      resetSpeaker();
+      speaker.write(buf);
     }
   }));
 
@@ -224,24 +225,3 @@ class BufStreamer extends Readable {
     }
   }
 }
-
-const { Worker } = require('worker_threads');
-const BUFFER_SAMPLE_CAP = 44100;
-
-const sb2 = new SharedArrayBuffer(4);
-const intlock = new Int32Array(sb2);
-
-const sharedBuffer = new SharedArrayBuffer(4 + 4 + BUFFER_SAMPLE_CAP * 4);
-const lock = new Int32Array(sharedBuffer, 0, 1);
-const length = new Int32Array(sharedBuffer, 4, 1);
-const sharedAudioData = new Float32Array(sharedBuffer, 8);
-
-const worker = new Worker('./audioworker.js', {
-  workerData: { sharedBuffer, sb2 }
-});
-
-function sendDataToWorker(audioData) {
-  console.log('parent: posting message');
-  // worker.postMessage(audioData, [audioData.buffer]);
-  worker.postMessage(audioData);
-};
