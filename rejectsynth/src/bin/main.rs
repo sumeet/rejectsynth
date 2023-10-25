@@ -12,8 +12,6 @@ use rejectsynth as lib;
 const BUFFER_SIZE: usize = 1024;
 const BUFFER_SIZE_HALF: usize = BUFFER_SIZE / 2;
 
-// north star:
-// III: ~4 ~3 ~2 ~3 , 4 ~-5 ~-7
 fn main() {
     let song = r#"bpm 70
 key E

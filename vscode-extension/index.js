@@ -159,16 +159,17 @@ function activate(context) {
       const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
       const iterStreamer = new IterStreamer(iter);
 
+
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
       disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
       disposableStatusBarItem.show();
+      resetSpeaker();
       speaker.on('close', () => {
         clearDecorations();
         disposableStatusBarItem.dispose();
       });
 
-      resetSpeaker();
       iterStreamer.pipe(speaker);
     })
   );
@@ -177,23 +178,23 @@ function activate(context) {
     vscode.commands.registerCommand('rejectsynth.playSelection', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      const l = editor.document.positionAt(editor.selection.start);
-      const r = editor.document.positionAt(editor.selection.end);
+      const l = editor.document.offsetAt(editor.selection.start);
+      const r = editor.document.offsetAt(editor.selection.end);
 
 
-      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
+      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText(), l, r);
       const iterStreamer = new IterStreamer(iter);
 
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
       disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
       disposableStatusBarItem.show();
+      resetSpeaker();
       speaker.on('close', () => {
         clearDecorations();
         disposableStatusBarItem.dispose();
       });
 
-      resetSpeaker();
       iterStreamer.pipe(speaker);
     })
   );

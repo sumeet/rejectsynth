@@ -1,6 +1,7 @@
 mod parser;
 
 use std::collections::HashSet;
+use std::ops::RangeInclusive;
 
 use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
 use r#macro::m;
@@ -16,22 +17,31 @@ pub struct WasmSongIterator {
     ctx: SongContext,
     song: Vec<SpannedInstruction>,
     syntaxes: Vec<Syntax>,
+    selection: Option<RangeInclusive<usize>>,
 }
 
 #[wasm_bindgen]
 impl WasmSongIterator {
     #[wasm_bindgen]
-    pub fn from_song_text(song_text: &str) -> Self {
+    pub fn from_song_text(song_text: &str, l: Option<usize>, r: Option<usize>) -> Self {
         let parse_result = parse(song_text).unwrap();
         let instructions = parse_result
             .spanned_instructions
             .iter()
             .map(|spanned_instruction| spanned_instruction.instruction)
             .collect();
+        let selection = match (l, r) {
+            // TODO: this is weird, it works better when i subtract 1,
+            // BUT the indices from vs code seem to be all right
+            // maybe it's a problem with our spanning logic...?
+            (Some(l), Some(r)) => Some(l - 1..=r - 1),
+            _ => None,
+        };
         Self {
             ctx: SongContext::default(instructions),
             song: parse_result.spanned_instructions,
             syntaxes: parse_result.syntaxes,
+            selection,
         }
     }
 
@@ -42,13 +52,36 @@ impl WasmSongIterator {
 
     #[wasm_bindgen]
     pub fn play_next(&mut self) -> PlaybackResult {
-        let samples = self.ctx.iterate();
+        let samples = match self.ctx.current_instruction() {
+            Instruction::PlayNote { .. } => {
+                let spanned_instruction = &self.song[self.ctx.pc];
+                if let Some(selection) = &self.selection {
+                    if selection.contains(&spanned_instruction.l)
+                        || selection.contains(&spanned_instruction.r)
+                    {
+                        self.ctx.iterate()
+                    } else {
+                        self.ctx.skip();
+                        vec![]
+                    }
+                } else {
+                    self.ctx.iterate()
+                }
+            }
+            Instruction::SetBPM(_)
+            | Instruction::SetKey(_)
+            | Instruction::SetScale(_)
+            | Instruction::SkipToNote
+            | Instruction::SetHarmony(_) => self.ctx.iterate(),
+        };
+
         let on_syntaxes = self
             .ctx
             .on_instructions
             .iter()
             .map(|&i| self.syntaxes[i].clone())
             .collect();
+
         PlaybackResult {
             samples,
             on_syntaxes,
