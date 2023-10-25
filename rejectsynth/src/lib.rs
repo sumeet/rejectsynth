@@ -34,7 +34,7 @@ impl WasmSongIterator {
             // TODO: this is weird, it works better when i subtract 1,
             // BUT the indices from vs code seem to be all right
             // maybe it's a problem with our spanning logic...?
-            (Some(l), Some(r)) => Some(l - 1..=r - 1),
+            (Some(l), Some(r)) => Some(l..=r),
             _ => None,
         };
         Self {

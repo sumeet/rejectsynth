@@ -96,6 +96,10 @@ function highlight(syntaxes) {
 }
 
 function activate(context) {
+  context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(e => {
+    vscode.commands.executeCommand('rejectsynth.playSelection');
+  }));
+
   context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
     const changes = e.contentChanges;
     if (changes.length === 0) return;
