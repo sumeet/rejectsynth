@@ -60,7 +60,7 @@ function resetSpeaker() {
 
 resetSpeaker();
 
-let decorationType;
+let playbackBGDecorationType;
 
 function clearDecorations() {
   let editor = vscode.window.activeTextEditor;
@@ -68,10 +68,10 @@ function clearDecorations() {
   while (highlightTimeouts.length > 0) {
     clearTimeout(highlightTimeouts.pop());
   }
-  if (decorationType) {
-    editor.setDecorations(decorationType, []);
-    decorationType.dispose();
-    decorationType = undefined;
+  if (playbackBGDecorationType) {
+    editor.setDecorations(playbackBGDecorationType, []);
+    playbackBGDecorationType.dispose();
+    playbackBGDecorationType = undefined;
   }
 }
 
@@ -80,8 +80,8 @@ const highlightTimeouts = [];
 function highlight(syntaxes) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
-  if (!decorationType) {
-    decorationType = vscode.window.createTextEditorDecorationType({
+  if (!playbackBGDecorationType) {
+    playbackBGDecorationType = vscode.window.createTextEditorDecorationType({
       backgroundColor: 'rgba(220, 220, 220, 0.5)'
     });
   }
@@ -92,7 +92,7 @@ function highlight(syntaxes) {
     const end = editor.document.positionAt(editor.document.offsetAt(start) + syntax.len);
     ranges.push(new vscode.Range(start, end));
   }
-  editor.setDecorations(decorationType, ranges);
+  editor.setDecorations(playbackBGDecorationType, ranges);
 }
 
 function activate(context) {
@@ -127,7 +127,7 @@ function activate(context) {
               new vscode.Range(0, 0, doc.lineCount, 0),
               {
                 title: "⏵️Play",
-                command: "rejectsynth.playFromHere",
+                command: "rejectsynth.playWholeFile",
                 arguments: [],
               }
             )
@@ -152,15 +152,12 @@ function activate(context) {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('rejectsynth.playFromHere', () => {
+    vscode.commands.registerCommand('rejectsynth.playWholeFile', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      const position = editor.selection.active;
-
-      resetSpeaker();
 
       const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
-      const bufStreamer = new IterStreamer(iter);
+      const iterStreamer = new IterStreamer(iter);
 
       let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
       disposableStatusBarItem.text = `$(stop) Stop`;
@@ -171,7 +168,33 @@ function activate(context) {
         disposableStatusBarItem.dispose();
       });
 
-      bufStreamer.pipe(speaker);
+      resetSpeaker();
+      iterStreamer.pipe(speaker);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('rejectsynth.playSelection', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const l = editor.document.positionAt(editor.selection.start);
+      const r = editor.document.positionAt(editor.selection.end);
+
+
+      const iter = reject.WasmSongIterator.from_song_text(editor.document.getText());
+      const iterStreamer = new IterStreamer(iter);
+
+      let disposableStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+      disposableStatusBarItem.text = `$(stop) Stop`;
+      disposableStatusBarItem.command = 'rejectsynth.stopPlaying';
+      disposableStatusBarItem.show();
+      speaker.on('close', () => {
+        clearDecorations();
+        disposableStatusBarItem.dispose();
+      });
+
+      resetSpeaker();
+      iterStreamer.pipe(speaker);
     })
   );
 }

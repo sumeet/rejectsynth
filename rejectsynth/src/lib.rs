@@ -264,6 +264,16 @@ pub mod songs {
     }
 }
 
+fn find_skip_to_index(instructions: &[Instruction]) -> Option<usize> {
+    instructions
+        .iter()
+        .enumerate()
+        .find_map(|(i, &inst)| match inst {
+            Instruction::SkipToNote => Some(i),
+            _ => None,
+        })
+}
+
 const ATTACK_MS: usize = 10;
 
 // volume is between 0 and 1
@@ -375,6 +385,8 @@ pub struct SongContext {
     phase: f32,
     harmony: Option<Harmony>,
 
+    skip_to_note_index: Option<usize>,
+
     pc: usize,
     instructions: Vec<Instruction>,
     on_harmony: Option<usize>,
@@ -428,6 +440,7 @@ impl SongContext {
     }
 
     pub fn default(instructions: Vec<Instruction>) -> Self {
+        let skip_to_index = find_skip_to_index(&instructions);
         Self::new(
             instructions,
             120,
@@ -436,10 +449,17 @@ impl SongContext {
                 accidental: Accidental::Natural,
             },
             Scale::Major,
+            skip_to_index,
         )
     }
 
-    fn new(instructions: Vec<Instruction>, bpm: u16, key: Key, scale: Scale) -> Self {
+    fn new(
+        instructions: Vec<Instruction>,
+        bpm: u16,
+        key: Key,
+        scale: Scale,
+        skip_to_index: Option<usize>,
+    ) -> Self {
         Self {
             bpm,
             key,
@@ -451,6 +471,7 @@ impl SongContext {
             on_harmony: None,
             off_on_next_tick: None,
             on_instructions: HashSet::new(),
+            skip_to_note_index: skip_to_index,
         }
     }
 
@@ -549,11 +570,12 @@ impl SongContext {
                 None
             }
             Instruction::PlayNote(note) => {
-                // if let Some(skip_to_note_index) = skip_to_note_index {
-                //     if i < skip_to_note_index {
-                //         return None;
-                //     }
-                // }
+                if let Some(skip_to_note_index) = self.skip_to_note_index {
+                    // this is a little bit strange because eval didn't know about pc and now it does...
+                    if self.pc < skip_to_note_index {
+                        return None;
+                    }
+                }
                 Some(self.render_note(note))
             }
             Instruction::SkipToNote => None,

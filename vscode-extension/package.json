@@ -25,8 +25,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "rejectsynth.playFromHere",
-        "title": "Play from Here"
+        "command": "rejectsynth.playSelection",
+        "title": "Play Selection"
+      },
+      {
+        "command": "rejectsynth.playWholeFile",
+        "title": "Play Whole File"
       },
       {
         "command": "rejectsynth.stopPlaying",
@@ -36,7 +40,11 @@
     "menus": {
       "editor/context": [
         {
-          "command": "rejectsynth.playFromHere",
+          "command": "rejectsynth.playWholeFile",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "rejectsynth.playSelection",
           "when": "editorTextFocus"
         }
       ]
