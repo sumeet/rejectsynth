@@ -3,63 +3,6 @@ const Speaker = require('speaker');
 
 const reject = require('../build/wasm/rejectsynth.js');
 
-class AsyncLock {
-  static INDEX = 0;
-  static UNLOCKED = 0;
-  static LOCKED = 1;
-
-  constructor(sab) {
-    this.sab = sab;
-    this.i32a = new Int32Array(sab);
-  }
-
-  lock() {
-    while (true) {
-      const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
-                        /* old value >>> */  AsyncLock.UNLOCKED,
-                        /* new value >>> */  AsyncLock.LOCKED);
-      if (oldValue == AsyncLock.UNLOCKED) {
-        return;
-      }
-      Atomics.wait(this.i32a, AsyncLock.INDEX,
-        AsyncLock.LOCKED); // <<< expected value at start
-    }
-  }
-
-  unlock() {
-    const oldValue = Atomics.compareExchange(this.i32a, AsyncLock.INDEX,
-                            /* old value >>> */  AsyncLock.LOCKED,
-                            /* new value >>> */  AsyncLock.UNLOCKED);
-    if (oldValue != AsyncLock.LOCKED) {
-      throw new Error('Tried to unlock while not holding the mutex');
-    }
-    Atomics.notify(this.i32a, AsyncLock.INDEX, 1);
-  }
-
-  executeLocked(f) {
-    const self = this;
-
-    async function tryGetLock() {
-      while (true) {
-        const oldValue = Atomics.compareExchange(self.i32a, AsyncLock.INDEX,
-                                    /* old value >>> */  AsyncLock.UNLOCKED,
-                                    /* new value >>> */  AsyncLock.LOCKED);
-        if (oldValue == AsyncLock.UNLOCKED) {
-          f();
-          self.unlock();
-          return;
-        }
-        const result = Atomics.waitAsync(self.i32a, AsyncLock.INDEX,
-          AsyncLock.LOCKED);
-        //  ^ expected value at start
-        await result.value;
-      }
-    }
-
-    tryGetLock();
-  }
-}
-
 // https://www.sublimetext.com/docs/scope_naming.html#keyword
 const TOKEN_TYPES = [
   'keyword',
@@ -293,28 +236,12 @@ const lock = new Int32Array(sharedBuffer, 0, 1);
 const length = new Int32Array(sharedBuffer, 4, 1);
 const sharedAudioData = new Float32Array(sharedBuffer, 8);
 
-const loq = new AsyncLock(sharedBuffer);
-
-// this should return right away because nobody is holding the lock yet
-loq.lock();
-
 const worker = new Worker('./audioworker.js', {
   workerData: { sharedBuffer, sb2 }
 });
 
-async function sendDataToWorker(audioData) {
-  if (intlock[0] !== 0) {
-    let result = await Atomics.waitAsync(intlock, 0, 0);
-    console.log('parent: waiting2 for lock from child', result);
-    if (result.value instanceof Promise) await result.value;
-    console.log('parent: done waiting for lock from child');
-  }
-
-  console.log('parent: setting shared buffer');
-  length[0] = audioData.length;
-  sharedAudioData.set(audioData, 0);
-
-  console.log('parent: waking up child');
-  Atomics.store(intlock, 0, 1);
-  Atomics.notify(intlock, 0);
+function sendDataToWorker(audioData) {
+  console.log('parent: posting message');
+  // worker.postMessage(audioData, [audioData.buffer]);
+  worker.postMessage(audioData);
 };
