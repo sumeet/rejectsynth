@@ -7,6 +7,12 @@ pub struct SpannedInstruction {
     pub r: usize,
 }
 
+impl SpannedInstruction {
+    pub fn range(&self) -> std::ops::Range<usize> {
+        self.l..self.r
+    }
+}
+
 peg::parser! {
     pub grammar grammar() for str {
         pub rule song() -> Vec<SpannedInstruction>

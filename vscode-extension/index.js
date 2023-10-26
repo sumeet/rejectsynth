@@ -185,7 +185,6 @@ function activate(context) {
       const l = editor.document.offsetAt(editor.selection.start);
       const r = editor.document.offsetAt(editor.selection.end);
 
-
       const iter = reject.WasmSongIterator.from_song_text(editor.document.getText(), l, r);
       const iterStreamer = new IterStreamer(iter);
 

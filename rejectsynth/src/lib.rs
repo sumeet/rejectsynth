@@ -1,7 +1,8 @@
 mod parser;
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::ops::RangeInclusive;
+use std::ops::{Bound, Range, RangeInclusive};
 
 use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
 use r#macro::m;
@@ -56,9 +57,7 @@ impl WasmSongIterator {
             Instruction::PlayNote { .. } => {
                 let spanned_instruction = &self.song[self.ctx.pc];
                 if let Some(selection) = &self.selection {
-                    if selection.contains(&spanned_instruction.l)
-                        || selection.contains(&spanned_instruction.r)
-                    {
+                    if ranges_intersect(selection.clone(), spanned_instruction.range()) {
                         self.ctx.iterate()
                     } else {
                         self.ctx.skip();
@@ -640,4 +639,12 @@ fn freq_to_abc(freq: f32) -> String {
     };
     let octave = n / 12 - 1;
     format!("{}{}", abc, octave)
+}
+
+fn ranges_intersect<T: PartialOrd>(a: std::ops::RangeInclusive<T>, b: std::ops::Range<T>) -> bool {
+    let (a_start, a_end) = a.into_inner();
+    let b_start = b.start;
+    let b_end = b.end;
+
+    !(a_end < b_start || b_end <= a_start)
 }
