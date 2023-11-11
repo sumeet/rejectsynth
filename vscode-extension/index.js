@@ -62,6 +62,10 @@ resetSpeaker();
 
 let playbackBGDecorationType;
 
+function audioLengthMs(numSamples) {
+  return numSamples / 44100 * 1000;
+}
+
 function clearDecorations() {
   let editor = vscode.window.activeTextEditor;
   if (!editor) return;
@@ -95,6 +99,13 @@ function highlight(syntaxes) {
   editor.setDecorations(playbackBGDecorationType, ranges);
 }
 
+let lastPlayMs = 0;
+
+function setLastPlayMs(source, offset=0) {
+  console.log(`setLastPlayMs: from ${source}, offset ${offset}`);
+  lastPlayMs = ms;
+}
+
 function activate(context) {
   context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(e => {
     vscode.commands.executeCommand('rejectsynth.playSelection');
@@ -114,9 +125,12 @@ function activate(context) {
     if (l !== r) throw new Error("expected range to just be a single character, update our assumptions");
     let samples = reject.playback_for_note_input(e.document.getText(), l);
     if (samples.length > 0) {
+      lastPlayMs = Date.now();
+
       let buf = Buffer.from(samples.buffer);
       resetSpeaker();
       speaker.write(buf);
+      setLastPlayMs('onDidChangeTextDocument', Date.now() + audioLengthMs());
     }
   }));
 
@@ -180,6 +194,10 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rejectsynth.playSelection', () => {
+      let afterTypingMs = Date.now() - lastPlayMs;
+      if(afterTypingMs < 1000)
+        return console.log("cancelled playSelection");
+
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
       const l = editor.document.offsetAt(editor.selection.start);
@@ -196,6 +214,7 @@ function activate(context) {
       speaker.on('close', () => {
         clearDecorations();
         disposableStatusBarItem.dispose();
+        setLastPlayMs('closing from iter in playSelection');
       });
 
       iterStreamer.pipe(speaker);
