@@ -81,12 +81,12 @@ function clearDecorations() {
 
 const highlightTimeouts = [];
 
-function highlight(syntaxes) {
+function highlightPlaying(syntaxes) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
   if (!playbackBGDecorationType) {
     playbackBGDecorationType = vscode.window.createTextEditorDecorationType({
-      backgroundColor: 'rgba(220, 220, 220, 0.5)'
+      backgroundColor: 'rgba(110, 220, 110, 0.5)'
     });
   }
 
@@ -241,7 +241,7 @@ class IterStreamer extends Readable {
   _read(size) {
     while (this.buffer.length < size && !this.iter.is_done()) {
       const playbackResult = this.iter.play_next();
-      highlightTimeouts.push(setTimeout(() => highlight(playbackResult.on_syntaxes), 500));
+      highlightTimeouts.push(setTimeout(() => highlightPlaying(playbackResult.on_syntaxes), 500));
       this.buffer = Buffer.concat(
         [this.buffer, Buffer.from(playbackResult.samples.buffer)]);
     }
