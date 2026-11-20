@@ -73,9 +73,10 @@ const modelReference = await monaco.editor.createModelReference(monaco.Uri.file(
 monaco.editor.setModelLanguage(modelReference.object.textEditorModel, 'rejectsynth');
 editor = monaco.editor.create(document.querySelector('#editor'), {
   model: modelReference.object.textEditorModel,
-  theme: 'rejectsynth', automaticLayout: true,
+  theme: 'rejectsynth',
   fontSize: 14, lineHeight: 22, fontFamily: '"DejaVu Sans Mono", monospace',
   minimap: { enabled: false }, scrollBeyondLastLine: false,
+  scrollbar: { verticalScrollbarSize: 8, verticalSliderSize: 6, horizontalScrollbarSize: 8, horizontalSliderSize: 6 },
   folding: false, glyphMargin: false, lineNumbersMinChars: 3,
   padding: { top: 10, bottom: 10 }, overviewRulerLanes: 0,
   codeLens: true, codeLensFontSize: 14,
@@ -122,11 +123,14 @@ function resize() {
   layoutPending = true;
   requestAnimationFrame(() => {
     layoutPending = false;
-    const height = Math.max(340, Math.min(640, editor.getContentHeight()));
+    const height = Math.max(340, Math.min(640, Math.ceil(editor.getContentHeight())));
     if (editorElement.style.height !== `${height}px`) {
       editorElement.style.height = `${height}px`;
-      editor.layout();
     }
+    // ResizeObserver reports fractional CSS pixels at some browser zoom levels.
+    // Monaco truncates them, creating a phantom 1px overflow and a full-height
+    // scrollbar. Our resize observer supplies the element's integer dimensions.
+    editor.layout({ width: editorElement.clientWidth, height: editorElement.clientHeight });
     if (window.parent !== window) window.parent.postMessage({
       type: 'rejectsynth:resize', height: document.querySelector('main').getBoundingClientRect().height,
     }, window.location.origin);
