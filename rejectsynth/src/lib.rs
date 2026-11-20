@@ -24,8 +24,9 @@ pub struct WasmSongIterator {
 #[wasm_bindgen]
 impl WasmSongIterator {
     #[wasm_bindgen]
-    pub fn from_song_text(song_text: &str, l: Option<usize>, r: Option<usize>) -> Self {
-        let parse_result = parse(song_text).unwrap();
+    pub fn from_song_text(song_text: &str, l: Option<usize>, r: Option<usize>) -> Result<Self, wasm_bindgen::JsValue> {
+        let parse_result = parse(song_text)
+            .map_err(|err| wasm_bindgen::JsValue::from_str(&err.to_string()))?;
         let instructions = parse_result
             .spanned_instructions
             .iter()
@@ -38,12 +39,12 @@ impl WasmSongIterator {
             (Some(l), Some(r)) => Some(l..=r),
             _ => None,
         };
-        Self {
+        Ok(Self {
             ctx: SongContext::default(instructions),
             song: parse_result.spanned_instructions,
             syntaxes: parse_result.syntaxes,
             selection,
-        }
+        })
     }
 
     #[wasm_bindgen]
@@ -169,6 +170,23 @@ fn parse(s: &str) -> Result<ParseResult, Box<dyn std::error::Error>> {
     let positions_of_line_breaks = s.match_indices('\n').map(|(i, _)| i).collect::<Vec<_>>();
     let spanned_instructions = grammar::song(s)?;
 
+    // An unfinished edit is normal in an interactive editor. Reject values that
+    // would otherwise panic during playback, before constructing the iterator.
+    for node in &spanned_instructions {
+        match node.instruction {
+            Instruction::SetBPM(0) => return Err("Tempo must be greater than zero".into()),
+            Instruction::PlayNote(note) => {
+                if matches!(note.pitch.enum_, dsl::NotePitchEnum::ScaleDegree(0)) {
+                    return Err("Scale degree must be greater than zero".into());
+                }
+                if note.duration.denominator == 0 {
+                    return Err("Note duration denominator must be greater than zero".into());
+                }
+            }
+            _ => {}
+        }
+    }
+
     let syntaxes = spanned_instructions
         .iter()
         .map(|spanned_instruction| {
@@ -208,8 +226,10 @@ fn parse(s: &str) -> Result<ParseResult, Box<dyn std::error::Error>> {
 }
 
 #[wasm_bindgen]
-pub fn syntax(s: &str) -> Vec<Syntax> {
-    parse(s).unwrap().syntaxes
+pub fn syntax(s: &str) -> Result<Vec<Syntax>, wasm_bindgen::JsValue> {
+    parse(s)
+        .map(|parsed| parsed.syntaxes)
+        .map_err(|err| wasm_bindgen::JsValue::from_str(&err.to_string()))
 }
 
 #[wasm_bindgen]

@@ -1,0 +1,26 @@
+{
+  "name": "rejectsynth-browser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "wasm": "bash build-wasm.sh",
+    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5174 --strictPort",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@codingame/monaco-vscode-api": "39.0.5",
+    "@codingame/monaco-vscode-configuration-service-override": "39.0.5",
+    "@codingame/monaco-vscode-editor-service-override": "39.0.5",
+    "@codingame/monaco-vscode-extensions-service-override": "39.0.5",
+    "@codingame/monaco-vscode-languages-service-override": "39.0.5",
+    "@codingame/monaco-vscode-model-service-override": "39.0.5",
+    "monaco-editor": "npm:@codingame/monaco-vscode-editor-api@39.0.5",
+    "monaco-vim": "0.4.4",
+    "vscode": "npm:@codingame/monaco-vscode-extension-api@39.0.5"
+  },
+  "devDependencies": {
+    "vite": "7.3.1"
+  }
+}

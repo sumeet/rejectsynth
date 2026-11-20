@@ -16,7 +16,7 @@ path = "src/bin/main.rs"
 [dependencies]
 macro = { path = "./macro" }
 dsl = { path = "./dsl" }
-wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen "}
+wasm-bindgen = "=0.2.100"
 peg = { git = "https://github.com/kevinmehall/rust-peg.git" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
