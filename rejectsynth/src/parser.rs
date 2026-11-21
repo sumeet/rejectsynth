@@ -51,19 +51,19 @@ peg::parser! {
             = note:note() { Instruction::PlayNote(note) }
 
         rule note() -> dsl::Note
-            = ties_to_prev:tie() num_half:note_mul_2()  pitch:pitch() num_twice:note_mul_2() is_dotted:dot() ties_to_next:tie() {
-                let mut numerator = if num_twice == 0 { 1 } else { num_twice * 2 };
-                let mut denominator = if num_half == 0 { 1 } else { num_half * 2 };
+            = ties_to_prev:tie() divisor:duration_multiplier() pitch:pitch() multiplier:duration_multiplier() is_dotted:dot() ties_to_next:tie() {?
+                let mut numerator = multiplier;
+                let mut denominator = divisor;
                 if is_dotted {
-                    numerator *= 3;
-                    denominator *= 2;
+                    numerator = numerator.checked_mul(3).ok_or("note duration is too large")?;
+                    denominator = denominator.checked_mul(2).ok_or("note duration is too small")?;
                 }
-                dsl::Note {
+                Ok(dsl::Note {
                     duration: dsl::Duration::new(numerator, denominator),
                     pitch,
                     ties_to_next,
                     ties_to_prev,
-                }
+                })
             }
 
         rule tie() -> bool
@@ -74,9 +74,10 @@ peg::parser! {
             = "." { true }
             / "" { false }
 
-        rule note_mul_2() -> u8
-            = s:"~"+ { (s.len() as u8) }
-            / "" { 0 }
+        rule duration_multiplier() -> u8
+            = tildes:$("~"*) {?
+                1u8.checked_shl(tildes.len() as u32).ok_or("too many duration modifiers")
+            }
 
         rule pitch() -> dsl::NotePitch
             = octave:octave() num:uint() accidental:accidental() {
@@ -121,19 +122,21 @@ peg::parser! {
             = harmony:harmony() ":" { dsl::Instruction::SetHarmony(harmony) }
 
         rule harmony() -> dsl::Harmony
-            = downshift:downshift() chord_base:chord_base() add_7:add_7() {
-                let shift = (downshift as i8 * -1);
+            = shift:inversion_shift() chord_base:chord_base() add_7:add_7() {
                 dsl::Harmony {degree: chord_base.0, scale: chord_base.1, add_7, shift}
             }
 
-        rule downshift() -> usize
-            = lts:"<"* { lts.len() }
+        rule inversion_shift() -> i8
+            = lts:$("<"+) {? i8::try_from(lts.len()).map(|n| -n).map_err(|_| "too many inversions") }
+            / gts:$(">"+) {? i8::try_from(gts.len()).map_err(|_| "too many inversions") }
+            / "" { 0 }
 
         rule chord_base() -> (u8, dsl::Scale)
             = "iii" { (3, dsl::Scale::Minor) }
             / "ii" { (2, dsl::Scale::Minor) }
             / "iv" { (4, dsl::Scale::Minor) }
             / "i" { (1, dsl::Scale::Minor) }
+            / "viii" { (8, dsl::Scale::Minor) }
             / "vii" { (7, dsl::Scale::Minor) }
             / "vi" { (6, dsl::Scale::Minor) }
             / "v" { (5, dsl::Scale::Minor) }
@@ -141,6 +144,7 @@ peg::parser! {
             / "II" { (2, dsl::Scale::Major) }
             / "IV" { (4, dsl::Scale::Major) }
             / "I" { (1, dsl::Scale::Major) }
+            / "VIII" { (8, dsl::Scale::Major) }
             / "VII" { (7, dsl::Scale::Major) }
             / "VI" { (6, dsl::Scale::Major) }
             / "V" { (5, dsl::Scale::Major) }

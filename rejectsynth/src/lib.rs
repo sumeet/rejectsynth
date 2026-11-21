@@ -1,4 +1,6 @@
 mod parser;
+#[cfg(test)]
+mod tests;
 
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -553,6 +555,11 @@ impl SongContext {
                 let last = freqs.pop().unwrap();
                 freqs.insert(0, last / 2.);
                 harmony.shift += 1;
+            }
+            while harmony.shift > 0 {
+                let first = freqs.remove(0);
+                freqs.push(first * 2.);
+                harmony.shift -= 1;
             }
         }
 

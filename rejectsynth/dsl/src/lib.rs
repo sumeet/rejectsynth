@@ -95,6 +95,7 @@ impl Harmony {
             "v" => 5,
             "vi" => 6,
             "vii" => 7,
+            "viii" => 8,
             _ => panic!("unknown harmony: {}", s),
         };
         Self {

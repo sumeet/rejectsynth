@@ -54,8 +54,33 @@ test('typing previews a note, including its preceding harmony', () => {
   assert.deepEqual(preview[0].samples, selection[0].samples);
 });
 
+test('duration notation produces powers-of-two audio lengths and dotted notes', () => {
+  for (const [note, seconds] of [
+    ['1', 1], ['~1', 0.5], ['~~1', 0.25], ['~~~1', 0.125],
+    ['~~~~1', 0.0625], ['1~', 2], ['1~~', 4], ['1~~~', 8],
+    ['1.', 1.5], ['~1.', 0.75],
+  ]) {
+    const frames = collect(songFrames(reject, `bpm 60\n${note}`));
+    assert.equal(frames.length, 1);
+    assert.ok(Math.abs(frames[0].samples.length / SAMPLE_RATE - seconds) < 0.001, note);
+  }
+});
+
+test('upward inversions and octave chords work without becoming playback markers', () => {
+  const text = 'bpm 120\nkey C\n1 >V: 2 >>v7: 3 VIII: 4 viii: 5';
+  const tokens = syntax(reject, text);
+  assert.equal(tokens.filter(token => token.node_type === 'SetHarmony').length, 4);
+  assert.equal(tokens.filter(token => token.node_type === 'SkipToNote').length, 0);
+  const frames = collect(songFrames(reject, text));
+  assert.equal(frames.length, 5);
+  assert.ok(frames.every(frame => frame.samples.every(Number.isFinite)));
+  assert.notDeepEqual(collect(songFrames(reject, 'V: 1'))[0].samples,
+    collect(songFrames(reject, '>V: 1'))[0].samples);
+  assert.equal(collect(songFrames(reject, '1 > >V: 2')).length, 1);
+});
+
 test('incomplete/invalid edits return errors and the same WASM instance recovers', () => {
-  for (const text of ['key Q', 'bpm ', 'bpm 0\n1', '0']) {
+  for (const text of ['key Q', 'bpm ', 'bpm 0\n1', '0', '~~~~~~~~1', '1~~~~~~~~', '1~~~~~~~.']) {
     assert.throws(() => syntax(reject, text));
     assert.throws(() => songFrames(reject, text));
     assert.equal(collect(previewFrames(reject, text, 0)).length, 0);

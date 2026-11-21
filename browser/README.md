@@ -60,14 +60,23 @@ for the editor. Neither Node nor Rust is needed on the portfolio's Dokku build.
   byte offsets to editor UTF-16 positions.
 - Pinned wasm-bindgen to 0.2.100 for a reproducible build with the matching CLI.
 - Parse errors return JS errors instead of panicking. Zero tempo, zero scale
-  degree and zero duration denominator are rejected before playback. Notation
-  and synthesis algorithms are otherwise unchanged.
+  degree and zero duration denominator are rejected before playback.
 - Enabled the document-model resolver service, fixing “Model not found” at boot.
+
+The notation legend uses spaced grey text below the editor. Repeated `~` now
+halves/doubles duration at each step (2, 4, 8, 16…), with overflow reported as a
+parse error. A dot adds half the note's duration. `>V:` and repeated `>` raise
+chord inversions, complementing `<V:`; a bare `>` remains the playback-start
+marker. `VIII:` and `viii:` select the octave chord roots. These changes use the
+shared text parser and synthesis engine used by the browser and VS Code.
 
 ## Verification
 
 `npm test` checks the actual compiled WASM song, selection context, note previews,
 invalid-edit recovery, and browser scheduling/cancellation with a simulated clock.
+It also checks note durations and the new chord syntax. Run
+`cargo test --manifest-path ../rejectsynth/Cargo.toml --lib --locked` from this
+directory for parser, chord-voicing, and playback-marker regression tests.
 Helium/CDP checks cover visible syntax colors, editor interactions, Play/Stop,
 selection/typing playback, invalid-input recovery, and Vim mode. A temporary
 Web Audio analyser verified a nonzero signal while playback was running.

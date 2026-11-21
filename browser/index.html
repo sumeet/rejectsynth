@@ -19,6 +19,48 @@
           </button>
         </div>
       </div>
+      <aside class="notation-legend" aria-label="rejectsynth notation legend">
+        <div class="notation-groups">
+          <dl>
+            <div><dt><code>1 2 3</code></dt><dd>notes in scale degrees</dd></div>
+            <div><dt><code>+1 ++1 -1 --1</code></dt><dd>higher or lower octaves</dd></div>
+            <div><dt><code>1# 1b</code></dt><dd>sharps and flats</dd></div>
+          </dl>
+          <div class="notation-rhythm">
+            <dl class="notation-rhythm-row">
+              <div><dt><code>~1</code></dt><dd><span class="notation-fraction" role="img" aria-label="one eighth"><span aria-hidden="true"><sup>1</sup>⁄<sub>8</sub></span></span> note</dd></div>
+              <div><dt><code>~~1</code></dt><dd><span class="notation-fraction" role="img" aria-label="one sixteenth"><span aria-hidden="true"><sup>1</sup>⁄<sub>16</sub></span></span> note</dd></div>
+              <div><dt><code>~~~1</code></dt><dd><span class="notation-fraction" role="img" aria-label="one thirty-second"><span aria-hidden="true"><sup>1</sup>⁄<sub>32</sub></span></span> note</dd></div>
+            </dl>
+            <dl class="notation-rhythm-row">
+              <div><dt><code>1~</code></dt><dd><span class="notation-fraction" role="img" aria-label="one half"><span aria-hidden="true"><sup>1</sup>⁄<sub>2</sub></span></span> note</dd></div>
+              <div><dt><code>1~~</code></dt><dd>whole note</dd></div>
+              <div><dt><code>1~~~</code></dt><dd>2× whole</dd></div>
+            </dl>
+            <div>
+              <dl class="notation-rhythm-row">
+                <div><dt><code>1.</code></dt><dd><span class="notation-fraction" role="img" aria-label="one and a half"><span aria-hidden="true">1<sup>1</sup>⁄<sub>2</sub></span></span> beats</dd></div>
+                <div><dt><code>1~.</code></dt><dd>3 beats</dd></div>
+              </dl>
+              <p class="notation-rhythm-description">add half the note length</p>
+            </div>
+          </div>
+          <dl>
+            <div><dt><code>I:</code> through <code>VIII:</code></dt><dd>major chord</dd></div>
+            <div><dt><code>i:</code> through <code>viii:</code></dt><dd>minor chord</dd></div>
+            <div><dt><code>V7:</code></dt><dd>adds a 7th to a chord</dd></div>
+            <div><dt><code>&lt;V: &lt;&lt;V:</code></dt><dd>lowers the inversion of a chord</dd></div>
+            <div><dt><code>&gt;V: &gt;&gt;V:</code></dt><dd>raises the inversion of a chord</dd></div>
+          </dl>
+          <dl>
+            <div><dt><code>bpm 70</code></dt><dd>set beats per minute</dd></div>
+            <div><dt><code>key C</code></dt><dd>set key signature</dd></div>
+            <div><dt><code>scale major/minor</code></dt></div>
+            <div><dt><code>,</code></dt><dd>just a separator</dd></div>
+            <div><dt><code>1_ _1</code></dt><dd>tie notes together</dd></div>
+          </dl>
+        </div>
+      </aside>
       <span id="status" role="status" class="visually-hidden">Loading editor</span>
       <p id="error" role="status" aria-live="polite"></p>
       <noscript>This music editor needs JavaScript.</noscript>
