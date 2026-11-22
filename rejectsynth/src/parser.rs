@@ -122,13 +122,20 @@ peg::parser! {
             = harmony:harmony() ":" { dsl::Instruction::SetHarmony(harmony) }
 
         rule harmony() -> dsl::Harmony
-            = shift:inversion_shift() chord_base:chord_base() add_7:add_7() {
-                dsl::Harmony {degree: chord_base.0, scale: chord_base.1, add_7, shift}
+            = chord_base:chord_base() extension:chord_extension() shift:upward_inversion() {
+                dsl::Harmony {degree: chord_base.0, scale: chord_base.1, extension, shift}
             }
+            // Keep the original prefix notation readable in existing songs.
+            / shift:inversion_shift() chord_base:chord_base() extension:chord_extension() {
+                dsl::Harmony {degree: chord_base.0, scale: chord_base.1, extension, shift}
+            }
+
+        rule upward_inversion() -> i8
+            = gts:$(">"+) {? i8::try_from(gts.len()).map_err(|_| "too many inversions") }
 
         rule inversion_shift() -> i8
             = lts:$("<"+) {? i8::try_from(lts.len()).map(|n| -n).map_err(|_| "too many inversions") }
-            / gts:$(">"+) {? i8::try_from(gts.len()).map_err(|_| "too many inversions") }
+            / shift:upward_inversion() { shift }
             / "" { 0 }
 
         rule chord_base() -> (u8, dsl::Scale)
@@ -149,9 +156,10 @@ peg::parser! {
             / "VI" { (6, dsl::Scale::Major) }
             / "V" { (5, dsl::Scale::Major) }
 
-        rule add_7() -> bool
-            = "7" { true }
-            / "" { false }
+        rule chord_extension() -> Option<dsl::ChordExtension>
+            = "7" { Some(dsl::ChordExtension::Seventh) }
+            / "9" { Some(dsl::ChordExtension::Ninth) }
+            / "" { None }
 
         rule uint() -> u128
             = int:$("0" / ['1' ..= '9']+ ['0' ..= '9']*) {? int.parse().or(Err("not a number")) }

@@ -38,6 +38,9 @@ fn repeated_tildes_double_or_halve_note_lengths() {
 fn inversions_produce_the_expected_chord_voicings() {
     for (text, semitones) in [
         ("I:", vec![0, 4, 7]),
+        ("I>:", vec![4, 7, 12]),
+        ("I>>:", vec![7, 12, 16]),
+        ("I>>>:", vec![12, 16, 19]),
         (">I:", vec![4, 7, 12]),
         (">>I:", vec![7, 12, 16]),
         (">>>I:", vec![12, 16, 19]),
@@ -45,11 +48,23 @@ fn inversions_produce_the_expected_chord_voicings() {
         ("<<I:", vec![-8, -5, 0]),
         ("<<<I:", vec![-12, -8, -5]),
         (">i:", vec![3, 7, 12]),
-        (">I7:", vec![4, 7, 11, 12]),
-        ("<I7:", vec![-1, 0, 4, 7]),
+        ("i>:", vec![3, 7, 12]),
+        ("I7:", vec![0, 4, 7, 10]),
+        ("i7:", vec![0, 3, 7, 10]),
+        ("V7:", vec![7, 11, 14, 17]),
+        ("v7:", vec![7, 10, 14, 17]),
+        ("I9:", vec![0, 4, 7, 10, 14]),
+        ("i9:", vec![0, 3, 7, 10, 14]),
+        ("V9:", vec![7, 11, 14, 17, 21]),
+        ("v9:", vec![7, 10, 14, 17, 21]),
+        ("I9>:", vec![4, 7, 10, 14, 12]),
+        ("I7>:", vec![4, 7, 10, 12]),
+        (">I7:", vec![4, 7, 10, 12]),
+        ("<I7:", vec![-2, 0, 4, 7]),
         ("VIII:", vec![12, 16, 19]),
         ("viii:", vec![12, 15, 19]),
         (">VIII:", vec![16, 19, 24]),
+        ("VIII>:", vec![16, 19, 24]),
     ] {
         let Instruction::SetHarmony(harmony) = grammar::instruction(text).unwrap() else {
             panic!("expected a chord: {text}");
@@ -69,8 +84,25 @@ fn inversions_produce_the_expected_chord_voicings() {
 }
 
 #[test]
+fn macro_and_text_notation_produce_the_same_ninth_chord() {
+    let instructions = m!(key C V9: 1);
+    let Instruction::SetHarmony(from_macro) = instructions[1] else {
+        panic!("expected a chord");
+    };
+    let Instruction::SetHarmony(from_text) = grammar::instruction("V9:").unwrap() else {
+        panic!("expected a chord");
+    };
+    let mut context = SongContext::default(vec![]);
+    context.harmony = Some(from_macro);
+    let frequencies = context.chord_freqs();
+    assert_eq!(frequencies.len(), 5);
+    context.harmony = Some(from_text);
+    assert_eq!(frequencies, context.chord_freqs());
+}
+
+#[test]
 fn standalone_playback_marker_remains_distinct_from_upward_inversions() {
-    let instructions: Vec<_> = grammar::song("1 > >V: 2 >>v7: 3")
+    let instructions: Vec<_> = grammar::song("1 > V>: 2 v7>>: 3")
         .unwrap()
         .into_iter()
         .map(|node| node.instruction)

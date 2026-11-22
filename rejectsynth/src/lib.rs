@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ops::{Bound, Range, RangeInclusive};
 
-use dsl::{Accidental, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
+use dsl::{Accidental, ChordExtension, Harmony, Instruction, Key, Note, NotePitch, Scale, ABC};
 use r#macro::m;
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -168,21 +168,60 @@ struct ParseResult {
     syntaxes: Vec<Syntax>,
 }
 
-fn parse(s: &str) -> Result<ParseResult, Box<dyn std::error::Error>> {
+// Keep parser locations through the WASM boundary so both editors can mark the
+// offending input, including validation failures that aren't grammar errors.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct Diagnostic {
+    pub start: usize,
+    pub end: usize,
+    message: String,
+}
+
+#[wasm_bindgen]
+impl Diagnostic {
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> String {
+        self.message.clone()
+    }
+}
+
+impl std::fmt::Display for Diagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+#[wasm_bindgen]
+pub fn diagnostic(s: &str) -> Option<Diagnostic> {
+    parse(s).err()
+}
+
+fn parse(s: &str) -> Result<ParseResult, Diagnostic> {
     let positions_of_line_breaks = s.match_indices('\n').map(|(i, _)| i).collect::<Vec<_>>();
-    let spanned_instructions = grammar::song(s)?;
+    let spanned_instructions = grammar::song(s).map_err(|err| {
+        let start = err.location.offset;
+        Diagnostic {
+            start,
+            end: start + s[start..].chars().next().map_or(0, char::len_utf8),
+            message: err.to_string(),
+        }
+    })?;
 
     // An unfinished edit is normal in an interactive editor. Reject values that
     // would otherwise panic during playback, before constructing the iterator.
     for node in &spanned_instructions {
+        let invalid = |message: &str| Diagnostic {
+            start: node.l, end: node.r, message: message.to_owned(),
+        };
         match node.instruction {
-            Instruction::SetBPM(0) => return Err("Tempo must be greater than zero".into()),
+            Instruction::SetBPM(0) => return Err(invalid("Tempo must be greater than zero")),
             Instruction::PlayNote(note) => {
                 if matches!(note.pitch.enum_, dsl::NotePitchEnum::ScaleDegree(0)) {
-                    return Err("Scale degree must be greater than zero".into());
+                    return Err(invalid("Scale degree must be greater than zero"));
                 }
                 if note.duration.denominator == 0 {
-                    return Err("Note duration denominator must be greater than zero".into());
+                    return Err(invalid("Note duration denominator must be greater than zero"));
                 }
             }
             _ => {}
@@ -545,10 +584,14 @@ impl SongContext {
             let freq_of_5 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_5);
             freqs.push(freq_of_5);
 
-            if harmony.add_7 {
-                let semitones_to_7 = scale_degree_to_semitones(harmony.scale, 7);
-                let freq_of_7 = shift_up_by_interval(freq_of_base_of_chord, semitones_to_7);
+            if harmony.extension.is_some() {
+                // Plain 7 adds a minor seventh to either triad quality:
+                // a dominant seventh for uppercase, a minor seventh for lowercase.
+                let freq_of_7 = shift_up_by_interval(freq_of_base_of_chord, 10);
                 freqs.push(freq_of_7);
+            }
+            if matches!(harmony.extension, Some(ChordExtension::Ninth)) {
+                freqs.push(shift_up_by_interval(freq_of_base_of_chord, 14));
             }
 
             while harmony.shift < 0 {

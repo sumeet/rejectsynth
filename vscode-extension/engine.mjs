@@ -23,6 +23,31 @@ export function syntax(reject, text) {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 export const byteOffset = (text, offset) => encoder.encode(text.slice(0, offset)).length;
+export function diagnostic(reject, text) {
+  const issue = reject.diagnostic(text);
+  if (!issue) return undefined;
+  try {
+    const bytes = encoder.encode(text);
+    return {
+      start: decoder.decode(bytes.subarray(0, issue.start)).length,
+      end: decoder.decode(bytes.subarray(0, issue.end)).length,
+      message: issue.message,
+    };
+  } finally { issue.free(); }
+}
+
+export function diagnosticRange(doc, issue, vscode) {
+  let start = issue.start;
+  let end = issue.end;
+  // At EOF, underline the unfinished token rather than an invisible position
+  // beyond the line. Never stretch a marker across a preceding newline.
+  if (start === end) {
+    const tail = doc.getText().slice(0, start).match(/\S+[ \t]*$/)?.[0];
+    if (tail) start -= tail.length;
+  }
+  return new vscode.Range(doc.positionAt(start), doc.positionAt(end));
+}
+
 export function syntaxRange(doc, node, vscode) {
   const line = encoder.encode(doc.lineAt(node.line_no).text);
   const col = decoder.decode(line.subarray(0, node.col_no)).length;

@@ -11,6 +11,7 @@
     <main>
       <div class="playground">
         <div id="editor" aria-label="Editable rejectsynth song"></div>
+        <p id="error" role="status" aria-live="polite"></p>
         <p id="loading">Loading editor…</p>
         <div class="vim-controls">
           <div id="vim-status" aria-live="polite" hidden></div>
@@ -48,9 +49,9 @@
           <dl>
             <div><dt><code>I:</code> through <code>VIII:</code></dt><dd>major chord</dd></div>
             <div><dt><code>i:</code> through <code>viii:</code></dt><dd>minor chord</dd></div>
-            <div><dt><code>V7:</code></dt><dd>adds a 7th to a chord</dd></div>
+            <div><dt><code>V7: V9:</code></dt><dd>7th or 9th chords</dd></div>
             <div><dt><code>&lt;V: &lt;&lt;V:</code></dt><dd>lowers the inversion of a chord</dd></div>
-            <div><dt><code>&gt;V: &gt;&gt;V:</code></dt><dd>raises the inversion of a chord</dd></div>
+            <div><dt><code>V&gt;: V&gt;&gt;:</code></dt><dd>raises the inversion of a chord</dd></div>
           </dl>
           <dl>
             <div><dt><code>bpm 70</code></dt><dd>set beats per minute</dd></div>
@@ -62,7 +63,6 @@
         </div>
       </aside>
       <span id="status" role="status" class="visually-hidden">Loading editor</span>
-      <p id="error" role="status" aria-live="polite"></p>
       <noscript>This music editor needs JavaScript.</noscript>
     </main>
     <script type="module" src="./boot.js"></script>

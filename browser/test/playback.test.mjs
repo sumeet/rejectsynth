@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import init, * as reject from '../generated/rejectsynth.js';
-import { syntax, songFrames, previewFrames, SAMPLE_RATE } from '../../vscode-extension/engine.mjs';
+import { syntax, diagnostic, diagnosticRange, songFrames, previewFrames, SAMPLE_RATE } from '../../vscode-extension/engine.mjs';
 import { BrowserAudio } from '../audio.mjs';
 
 await init({ module_or_path: await readFile(new URL('../generated/rejectsynth_bg.wasm', import.meta.url)) });
@@ -67,7 +67,7 @@ test('duration notation produces powers-of-two audio lengths and dotted notes', 
 });
 
 test('upward inversions and octave chords work without becoming playback markers', () => {
-  const text = 'bpm 120\nkey C\n1 >V: 2 >>v7: 3 VIII: 4 viii: 5';
+  const text = 'bpm 120\nkey C\n1 V>: 2 v7>>: 3 VIII: 4 viii: 5';
   const tokens = syntax(reject, text);
   assert.equal(tokens.filter(token => token.node_type === 'SetHarmony').length, 4);
   assert.equal(tokens.filter(token => token.node_type === 'SkipToNote').length, 0);
@@ -75,8 +75,13 @@ test('upward inversions and octave chords work without becoming playback markers
   assert.equal(frames.length, 5);
   assert.ok(frames.every(frame => frame.samples.every(Number.isFinite)));
   assert.notDeepEqual(collect(songFrames(reject, 'V: 1'))[0].samples,
-    collect(songFrames(reject, '>V: 1'))[0].samples);
-  assert.equal(collect(songFrames(reject, '1 > >V: 2')).length, 1);
+    collect(songFrames(reject, 'V>: 1'))[0].samples);
+  assert.equal(collect(songFrames(reject, '1 > V>: 2')).length, 1);
+  for (const [suffix, prefix] of [['V>:', '>V:'], ['v7>>:', '>>v7:'], ['VIII>>>:', '>>>VIII:']]) {
+    assert.deepEqual(collect(songFrames(reject, `${suffix} 1`))[0].samples,
+      collect(songFrames(reject, `${prefix} 1`))[0].samples);
+  }
+  assert.throws(() => syntax(reject, `V${'>'.repeat(128)}: 1`));
 });
 
 test('incomplete/invalid edits return errors and the same WASM instance recovers', () => {
@@ -87,6 +92,49 @@ test('incomplete/invalid edits return errors and the same WASM instance recovers
     assert.equal(collect(songFrames(reject, 'bpm 120\n1')).length, 1);
   }
   assert.equal(collect(songFrames(reject, '')).length, 0);
+});
+
+test('ninth chords synthesize, highlight and retain harmony when selected', () => {
+  const text = 'bpm 120\nkey C\nV9: 1 ~2 v9>>: 3';
+  const tokens = syntax(reject, text);
+  assert.equal(tokens.filter(token => token.node_type === 'SetHarmony').length, 2);
+  assert.equal(tokens.filter(token => token.node_type === 'SkipToNote').length, 0);
+  const frames = collect(songFrames(reject, text));
+  assert.equal(frames.length, 3);
+  assert.ok(frames.every(frame => frame.samples.every(Number.isFinite)));
+  const start = text.indexOf('~2');
+  const selected = collect(songFrames(reject, text, start, start + 1));
+  assert.equal(selected.length, 1);
+  assert.ok(selected[0].syntaxes.some(node => node.node_type === 'SetHarmony'));
+  assert.deepEqual(collect(previewFrames(reject, text, start))[0].samples, selected[0].samples);
+  assert.notDeepEqual(collect(songFrames(reject, 'V9: 1'))[0].samples,
+    collect(songFrames(reject, 'V7: 1'))[0].samples);
+  assert.notDeepEqual(collect(songFrames(reject, 'V9: 1'))[0].samples,
+    collect(songFrames(reject, 'v9: 1'))[0].samples);
+  assert.deepEqual(collect(songFrames(reject, 'v9>>: 1'))[0].samples,
+    collect(songFrames(reject, '>>v9: 1'))[0].samples);
+});
+
+test('diagnostics locate grammar and validation failures and clear after correction', () => {
+  for (const [text, start, end, message] of [
+    ['1\nkey Q', 6, 7, /expected/],
+    ['1\nbpm 0', 2, 7, /Tempo/],
+    ['1\n0', 2, 3, /Scale degree/],
+    ['key ', 4, 4, /expected/],
+    ['1\n😀', 2, 4, /expected/],
+  ]) {
+    const issue = diagnostic(reject, text);
+    assert.equal(issue.start, start, text);
+    assert.equal(issue.end, end, text);
+    assert.match(issue.message, message);
+  }
+  assert.equal(diagnostic(reject, '1\nkey C\nbpm 70\n2'), undefined);
+  const text = '1\nkey ';
+  const doc = { getText: () => text, positionAt: offset => offset };
+  const vscode = { Range: class { constructor(start, end) { Object.assign(this, { start, end }); } } };
+  const range = diagnosticRange(doc, diagnostic(reject, text), vscode);
+  assert.equal(range.start, 2);
+  assert.equal(range.end, 6);
 });
 
 function fakeAudio() {

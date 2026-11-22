@@ -1,4 +1,4 @@
-import { TOKEN_TYPES, TOKEN_INDEX, syntax, syntaxRange, songFrames, previewFrames } from './engine.mjs';
+import { TOKEN_TYPES, TOKEN_INDEX, syntax, syntaxRange, diagnostic, diagnosticRange, songFrames, previewFrames } from './engine.mjs';
 
 // VS Code event handlers and providers shared by desktop and the embedded editor.
 // Only the audio transport and optional page status callbacks differ by host.
@@ -24,6 +24,20 @@ export function activateRejectsynth(context, {
     backgroundColor: 'rgba(110, 220, 110, 0.35)',
   });
   const isSong = doc => doc?.languageId === 'rejectsynth';
+  const diagnostics = vscode.languages.createDiagnosticCollection('rejectsynth');
+  function validate(doc) {
+    if (!isSong(doc)) return;
+    const issue = diagnostic(reject, doc.getText());
+    const entries = [];
+    if (issue) {
+      const entry = new vscode.Diagnostic(diagnosticRange(doc, issue, vscode),
+        issue.message, vscode.DiagnosticSeverity.Error);
+      entry.source = 'rejectsynth';
+      entries.push(entry);
+    }
+    diagnostics.set(doc.uri, entries);
+    return issue;
+  }
   const active = () => {
     const editor = vscode.window.activeTextEditor;
     return isSong(editor?.document) ? editor : undefined;
@@ -56,6 +70,10 @@ export function activateRejectsynth(context, {
     const version = editor.document.version;
     const start = selection ? editor.document.offsetAt(editor.selection.start) : undefined;
     const end = selection ? editor.document.offsetAt(editor.selection.end) : undefined;
+    // Note-preview synthesis intentionally returns silence for invalid input;
+    // don't let that silence clear a genuine parser error.
+    const issue = validate(editor.document);
+    if (issue) { fail(issue, automatic); return; }
     try {
       await audio.unlock();
       if (ownRequest !== request || editor.document.version !== version) return;
@@ -84,7 +102,8 @@ export function activateRejectsynth(context, {
     }
   }
 
-  context.subscriptions.push(decoration, lensesChanged, { dispose: () => { stop(); audio.dispose(); } });
+  context.subscriptions.push(decoration, diagnostics, lensesChanged, { dispose: () => { stop(); audio.dispose(); } });
+  for (const doc of vscode.workspace.textDocuments) validate(doc);
   context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider(
     { language: 'rejectsynth' },
     { provideDocumentSemanticTokens(doc) {
@@ -105,7 +124,7 @@ export function activateRejectsynth(context, {
     { language: 'rejectsynth' },
     { onDidChangeCodeLenses: lensesChanged.event,
       provideCodeLenses: () => [new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), {
-      title: isPlaying ? 'Stop' : 'Play', command: 'rejectsynth.togglePlayback', arguments: [],
+      title: isPlaying ? '■ Stop' : '▸ Play', command: 'rejectsynth.togglePlayback', arguments: [],
     })] },
   ));
   context.subscriptions.push(
@@ -113,6 +132,8 @@ export function activateRejectsynth(context, {
     vscode.commands.registerCommand('rejectsynth.togglePlayback', () => isPlaying ? stop() : play()),
     vscode.commands.registerCommand('rejectsynth.playSelection', () => play({ selection: true })),
     vscode.commands.registerCommand('rejectsynth.stopPlaying', stop),
+    vscode.workspace.onDidOpenTextDocument(doc => validate(doc)),
+    vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri)),
     vscode.window.onDidChangeTextEditorSelection(event => {
       if (!isSong(event.textEditor.document) || Date.now() < suppressSelectionUntil
           || (event.kind === vscode.TextEditorSelectionChangeKind.Command && !previewCommandSelections)) return;
@@ -120,6 +141,7 @@ export function activateRejectsynth(context, {
     }),
     vscode.workspace.onDidChangeTextDocument(event => {
       if (!isSong(event.document) || event.contentChanges.length === 0) return;
+      validate(event.document);
       stop();
       suppressSelectionUntil = Date.now() + 250;
       if (event.contentChanges.length !== 1 || event.document !== active()?.document) return;

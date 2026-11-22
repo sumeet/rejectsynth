@@ -68,17 +68,27 @@ pub enum Instruction {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum ChordExtension {
+    Seventh,
+    Ninth,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Harmony {
     pub scale: Scale,
     pub degree: u8,
-    pub add_7: bool,
+    pub extension: Option<ChordExtension>,
     pub shift: i8,
 }
 
 impl Harmony {
     pub fn parse(mut s: &str) -> Self {
-        let add_7 = s.ends_with('7');
-        if add_7 {
+        let extension = match s.chars().last() {
+            Some('7') => Some(ChordExtension::Seventh),
+            Some('9') => Some(ChordExtension::Ninth),
+            _ => None,
+        };
+        if extension.is_some() {
             s = &s[..s.len() - 1];
         }
 
@@ -101,7 +111,7 @@ impl Harmony {
         Self {
             scale,
             degree,
-            add_7,
+            extension,
             shift: 0,
         }
     }
